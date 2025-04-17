@@ -10,12 +10,51 @@ Your audio and data never leave your machine—enterprise-grade privacy at your 
 - For low-memory setups (<8 GB), use `WHISPER_MODEL=tiny` (~200 MB) and/or remote chat/TTS backends.
 - Docker & Docker Compose installed; ports 8000 (agent) and 11434 (chat) accessible.
 
-## One‑click demo
-1. `brew install ollama && ollama run llama3:8b-instruct`
-2. `brew install piper && piper --download-voice pt-br-joaquim-low`
-3. `pip install -r requirements.txt`
-4. `uvicorn app:app --reload`
-5. Open `http://localhost:8000` → hold the button and talk!
+## Quick Start
+
+### Option 1: Docker Compose (Recommended)
+Requires Docker & Docker Compose.
+```bash
+docker-compose up --build
+```
+Open http://localhost:8000 in your browser and hold the button to talk.
+
+### Option 2: Manual Local Install
+
+#### Linux / macOS
+1. Install Ollama chat model:
+   ```bash
+   # macOS
+   brew install ollama
+   # or Linux (Homebrew or see https://ollama.ai/docs/installation)
+   ```
+2. Start the chat service:
+   ```bash
+   ollama run ${OLLAMA_MODEL:-phi3:mini}
+   ```
+3. Install Piper TTS engine:
+   ```bash
+   # macOS
+   brew install piper
+   # or Linux (cargo install or binaries from https://github.com/rhasspy/piper)
+   ```
+4. Download a local voice:
+   ```bash
+   piper --download-voice ${PIPER_VOICE:-pt-br-joaquim-low}
+   ```
+5. Install Python dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+6. Launch the FastAPI app:
+   ```bash
+   uvicorn app:app --reload
+   ```
+7. Open http://localhost:8000 and hold the button to talk.
+
+#### Windows
+Use Windows Subsystem for Linux (WSL) and follow the Linux instructions above,
+or run the recommended Docker Compose option.
 
 ## Minimum Specs
 | Component | Model                 | RAM Used |
