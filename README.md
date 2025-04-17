@@ -8,14 +8,17 @@ Your audio and data never leave your machine—enterprise-grade privacy at your 
 - Memory: Whisper 'small' uses ~2–3 GB RAM; Ollama llama3:8b-instruct uses ~10 GB; allow ~14 GB total plus OS overhead (~16 GB+ recommended).
 - CPU: 4+ cores. CPU-only inference can be several times real-time; for low-latency (<300 ms) consider GPU or remote inference.
 - For low-memory setups (<8 GB), use `WHISPER_MODEL=tiny` (~200 MB) and/or remote chat/TTS backends.
-- Docker & Docker Compose installed; ports 8000 (agent) and 11434 (chat) accessible.
+- Docker installed; ports 8000 (agent) and 11434 (chat) accessible.
 
 ## Quick Start
 
-### Option 1: Docker Compose (Recommended)
-Requires Docker & Docker Compose.
+### Option 1: Single Docker Image (Recommended)
+Build and run everything (chat model + voice agent) in one container.
 ```bash
-docker-compose up --build
+# Build the image
+docker build -t hybrid-voice-agent .
+# Run the container (exposes ports 8000 and 11434)
+docker run --rm -p 8000:8000 -p 11434:11434 hybrid-voice-agent
 ```
 Open http://localhost:8000 in your browser and hold the button to talk.
 
@@ -54,7 +57,7 @@ Open http://localhost:8000 in your browser and hold the button to talk.
 
 #### Windows
 Use Windows Subsystem for Linux (WSL) and follow the Linux instructions above,
-or run the recommended Docker Compose option.
+or run the single Docker image (Option 1) for a fully automated setup.
 
 ## Minimum Specs
 | Component | Model                 | RAM Used |
