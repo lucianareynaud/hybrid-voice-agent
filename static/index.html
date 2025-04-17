@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Hybrid Voice Agent Demo</title>
+</head>
+<body>
+  <button id="rec" style="font-size:20px;padding:10px 20px;">Hold to Talk</button>
+  <div><h3>Transcript</h3><div id="transcript"></div></div>
+  <div><h3>Response</h3><div id="response"></div></div>
+  <script>
+    let recorder, chunks;
+    const rec = document.getElementById('rec');
+    rec.onmousedown = async () => {
+      document.getElementById('transcript').textContent = '';
+      document.getElementById('response').textContent = '';
+      const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+      recorder = new MediaRecorder(stream, {mimeType:'audio/webm'});
+      chunks = [];
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.start();
+    };
+    rec.onmouseup = async () => {
+      recorder.stop();
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, {type:'audio/webm'});
+        const form = new FormData();
+        form.append('audio', blob, 'rec.webm');
+        const res = await fetch('/process', {method:'POST', body:form});
+        const data = await res.json();
+        document.getElementById('transcript').textContent = data.transcript;
+        document.getElementById('response').textContent = data.response_text;
+        new Audio('data:audio/mp3;base64,'+data.audio_base64).play();
+      };
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+faster-whisper==1.0.1
+piper-tts==1.2.0
+httpx                    # Ollama chat
+python-dotenv
+elevenlabs               # optional
+openai                   # optional
