@@ -2,7 +2,7 @@ fastapi
 uvicorn[standard]
 faster-whisper==1.0.1
 piper-tts==1.2.0
-httpx                    # Ollama chat
+httpx                    # Ollama chat (default phi3:mini low-mem)
 python-dotenv
 elevenlabs               # optional
 openai                   # optional

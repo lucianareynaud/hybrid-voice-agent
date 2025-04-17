@@ -29,6 +29,10 @@ except ImportError:
 # Load environment variables
 load_dotenv()
 
+# Low-memory model defaults
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "tiny")
+OLLAMA_MODEL  = os.getenv("OLLAMA_MODEL", "phi3:mini")
+
 # FastAPI init
 app = FastAPI()
 
@@ -40,7 +44,7 @@ async def root():
     return FileResponse("static/index.html")
 
 # Load Whisper model once
-model = WhisperModel(os.getenv("WHISPER_MODEL", "small"))
+model = WhisperModel(WHISPER_MODEL, device="auto")
 
 async def transcribe_audio(path: str) -> str:
     segments, _ = model.transcribe(path)
@@ -48,11 +52,9 @@ async def transcribe_audio(path: str) -> str:
 
 async def chat_with_ollama(text: str) -> str:
     url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
-    payload = {
-        "model": os.getenv("OLLAMA_MODEL", "llama3:8b-instruct"),
-        "messages": [{"role": "user", "content": text}],
-        "stream": False
-    }
+    # Low-memory LLM default
+    messages = [{"role": "user", "content": text}]
+    payload = {"model": OLLAMA_MODEL, "stream": False, "messages": messages}
     async with httpx.AsyncClient() as client:
         res = await client.post(url, json=payload)
         res.raise_for_status()
