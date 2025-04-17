@@ -1,6 +1,7 @@
 # hybrid-voice-agent – Zero-cost, browser-based voice bot POC
 
 Welcome to **hybrid-voice-agent**, the world’s first fully offline, privacy-first browser-based voice bot.
+This white-label solution is fully customizable for any industry or domain.
 Run all components locally with no API keys, no service credits, and zero cloud dependencies.
 Your audio and data never leave your machine—enterprise-grade privacy at your fingertips.
 
@@ -86,7 +87,7 @@ export TTS_BACKEND=openai      # plus OPENAI_API_KEY
 - WebSocket streaming (<300 ms latency)
 - VAD to auto‑detect end‑of‑utterance
 - Twilio Media Streams phone‑number bridge
-- LoRA fine‑tuning for Amil domain language
+- LoRA fine‑tuning for custom domain-specific language
 - Front‑end subtitles with word‑level timing
 
 MIT License
