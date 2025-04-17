@@ -72,7 +72,7 @@ or run the single Docker image (Option 1) for a fully automated setup.
 ```bash
 cloudflared tunnel run voice-agent
 ```
-_exposes_ https://voice.lucianaferreira.pro
+Exposes your local app to the internet via a secure Cloudflare Tunnel.
 
 ## Premium Voices (Optional)
 By default, the demo runs 100% offline with no API keys or service credits required. To enable enhanced cloud-based voices, set one of the following:
