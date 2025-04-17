@@ -14,12 +14,10 @@ Your audio and data never leave your machine—enterprise-grade privacy at your 
 ## Quick Start
 
 ### Option 1: Single Docker Image (Recommended)
-Build and run everything (chat model + voice agent) in one container.
+Build and run everything in one container — no additional install steps.
 ```bash
-# Build the image
-docker build -t hybrid-voice-agent .
-# Run the container (exposes ports 8000 and 11434)
-docker run --rm -p 8000:8000 -p 11434:11434 hybrid-voice-agent
+docker build -t voice-agent .
+docker run --rm -p 8000:8000 voice-agent        # nothing else to install
 ```
 Open http://localhost:8000 in your browser and hold the button to talk.
 

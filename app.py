@@ -32,6 +32,7 @@ load_dotenv()
 # Low-memory model defaults
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "tiny")
 OLLAMA_MODEL  = os.getenv("OLLAMA_MODEL", "phi3:mini")
+OLLAMA_URL    = "http://localhost:11434/api/chat"
 
 # FastAPI init
 app = FastAPI()
@@ -51,7 +52,7 @@ async def transcribe_audio(path: str) -> str:
     return "".join(s.text for s in segments).strip()
 
 async def chat_with_ollama(text: str) -> str:
-    url = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
+    url = OLLAMA_URL
     # Low-memory LLM default
     messages = [{"role": "user", "content": text}]
     payload = {"model": OLLAMA_MODEL, "stream": False, "messages": messages}
