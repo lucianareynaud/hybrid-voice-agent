@@ -2,26 +2,47 @@ version: '3.8'
 services:
   chat:
     image: ollama/ollama:latest
-    command: ["run","phi4-mini"]
+    command: serve
     ports:
-      - "127.0.0.1:11434:11434"
+      - "127.0.0.1:11435:11434"
     volumes:
       - ollama_data:/ollama/data
     restart: unless-stopped
+    networks:
+      - voice_network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/version || exit 1"]
-      interval: 30s
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version", "||", "exit", "1"]
+      interval: 20s
       timeout: 10s
-      retries: 3
-      start_period: 40s
+      retries: 5
+      start_period: 60s
     deploy:
       resources:
         limits:
-          cpus: '2.0'
-          memory: 4G
+          cpus: '4.0'
+          memory: 12G
         reservations:
-          cpus: '0.5'
-          memory: 2G
+          cpus: '2.0'
+          memory: 8G
+
+  model-setup:
+    image: ollama/ollama:latest
+    depends_on:
+      chat:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - voice_network
+    volumes:
+      - ./scripts:/scripts
+    command: >
+      sh -c "
+        echo 'Downloading and warming up Mistral...' &&
+        (ollama pull mistral:latest && ollama run mistral 'Write a short greeting' --verbose=false) &&
+        echo 'Model cache is warm and ready!'
+      "
+    environment:
+      OLLAMA_HOST: chat:11434
 
   app:
     build: .
@@ -30,29 +51,40 @@ services:
     environment:
       TTS_BACKEND: local
       PIPER_VOICE: en-us-ryan-low
-      OLLAMA_MODEL: phi4-mini
-      OLLAMA_URL: http://chat:11434/api/chat
+      OLLAMA_MODEL: mistral
+      OLLAMA_HOST: http://chat:11434
       WHISPER_MODEL: tiny
-      LOG_LEVEL: INFO
+      LOG_LEVEL: DEBUG
+      MAX_RETRIES: 5
+      RETRY_DELAY: 1.0
+      DISABLE_INTERNAL_OLLAMA: "true"
     volumes:
       - ./static:/app/static
       - whisper_models:/root/.cache/huggingface/hub
       - piper_models:/root/.local/share/piper/
+    networks:
+      - voice_network
     depends_on:
-      - chat
+      model-setup:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 30s
+      interval: 10s
       timeout: 10s
       retries: 3
+      start_period: 20s
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 2G
+          cpus: '2.0'
+          memory: 4G
         reservations:
-          memory: 1G
+          memory: 2G
+
+networks:
+  voice_network:
+    driver: bridge
 
 volumes:
   ollama_data:

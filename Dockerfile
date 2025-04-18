@@ -3,7 +3,7 @@ FROM python:3.11-slim
 
 # Minimal runtime deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ffmpeg curl git \
+        ffmpeg curl git netcat-openbsd iputils-ping net-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Ollama CLI (daemon will be started at runtime)
@@ -24,11 +24,16 @@ COPY . .
 # Install Python dependencies inside venv
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Set environment variables
+# Set environment variables for faster startup
 ENV WHISPER_MODEL=tiny
-ENV OLLAMA_MODEL=phi4-mini
+ENV OLLAMA_MODEL=mistral
 ENV TTS_BACKEND=local
 ENV PIPER_VOICE=en-us-ryan-low
+ENV OLLAMA_HOST=http://localhost:11434
+ENV MAX_RETRIES=5
+ENV RETRY_DELAY=1.0
+ENV DISABLE_INTERNAL_OLLAMA=false
+ENV LOG_LEVEL=DEBUG
 
 # Download the Piper voice model
 RUN mkdir -p /root/.local/share/piper/voices && \
@@ -39,7 +44,15 @@ RUN mkdir -p /root/.local/share/piper/voices && \
     cp en-us-ryan-low.onnx /app/voices/ && \
     cp en-us-ryan-low.onnx.json /app/voices/
 
+# Add a health check to quickly indicate readiness
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
 EXPOSE 8000
 
-# Start Ollama, wait for API, pull model once, then start FastAPI
-CMD ["bash","-c","ollama serve & until curl -s http://localhost:11434 > /dev/null; do sleep 1; done; ollama pull ${OLLAMA_MODEL:-phi4-mini} || true; piper --help || echo 'Piper voice ready'; uvicorn app:app --host 0.0.0.0 --port 8000"]
+# Start script with optimized startup
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
+# Use the entrypoint script
+CMD ["/app/docker-entrypoint.sh"]

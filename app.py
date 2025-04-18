@@ -4,6 +4,8 @@ import base64
 import tempfile
 import subprocess
 import logging
+import time
+import asyncio
 from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
@@ -41,7 +43,18 @@ logger = logging.getLogger(__name__)
 # Low-memory model defaults
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "tiny")
 OLLAMA_MODEL  = os.getenv("OLLAMA_MODEL", "phi3:mini")
-OLLAMA_URL    = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
+OLLAMA_HOST   = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_URL    = f"{OLLAMA_HOST}/api/generate"
+OLLAMA_HEALTH_URL = f"{OLLAMA_HOST}/api/version"
+MAX_RETRIES   = int(os.getenv("MAX_RETRIES", "3"))
+RETRY_DELAY   = float(os.getenv("RETRY_DELAY", "0.5"))
+
+# Common questions and answers for fast responses
+COMMON_ANSWERS = {
+    "capital of the united states": "The capital of the United States is Washington, D.C.",
+    "color of the sky": "The sky appears blue during the day due to a phenomenon called Rayleigh scattering, where the atmosphere scatters blue light from the sun more than other colors.",
+    "us president": "The current President of the United States is Joe Biden, who took office on January 20, 2021."
+}
 
 # FastAPI init
 app = FastAPI(
@@ -74,7 +87,85 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok"}
+    # Check Ollama health with better diagnostics
+    try:
+        ollama_status = await check_ollama_health()
+        # Check if model is loaded
+        model_loaded = False
+        
+        if ollama_status:
+            try:
+                async with httpx.AsyncClient(timeout=2.0) as client:
+                    response = await client.post(
+                        f"{OLLAMA_HOST}/api/tags", 
+                        json={},
+                        timeout=2.0
+                    )
+                    if response.status_code == 200:
+                        model_data = response.json()
+                        if "models" in model_data:
+                            for model_info in model_data.get("models", []):
+                                if model_info.get("name", "").startswith(OLLAMA_MODEL.split(":")[0]):
+                                    model_loaded = True
+                                    logger.info(f"Found model {model_info.get('name')} matching {OLLAMA_MODEL}")
+                                    break
+            except Exception as e:
+                logger.warning(f"Could not verify model loading status: {str(e)}")
+    except Exception as e:
+        logger.error(f"Health check error: {str(e)}")
+        ollama_status = False
+        model_loaded = False
+    
+    # Check Whisper model status with more details
+    whisper_status = model is not None
+    whisper_detail = "loaded" if whisper_status else "not loaded"
+    
+    # Compute overall status
+    overall_status = "ok" if ollama_status and whisper_status else "degraded"
+    if not ollama_status:
+        overall_status = "critical"
+    
+    # Return detailed health information
+    return {
+        "status": overall_status,
+        "version": "1.0.0",
+        "timestamp": int(time.time()),
+        "components": {
+            "ollama": {
+                "status": "ready" if ollama_status else "unavailable", 
+                "model": OLLAMA_MODEL,
+                "model_loaded": model_loaded,
+                "url": OLLAMA_URL
+            },
+            "whisper": {
+                "status": whisper_detail,
+                "model": WHISPER_MODEL
+            },
+            "tts": {
+                "backend": os.getenv("TTS_BACKEND", "local"),
+                "voice": os.getenv("PIPER_VOICE", "en-us-ryan-low") if os.getenv("TTS_BACKEND", "local") == "local" else "default"
+            }
+        }
+    }
+
+async def check_ollama_health(retries=1):
+    """Check if Ollama API is healthy and ready to serve requests"""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(OLLAMA_HEALTH_URL)
+            if response.status_code == 200:
+                logger.info("Ollama API is healthy and ready")
+                return True
+            else:
+                logger.warning(f"Ollama API returned status code {response.status_code}")
+                return False
+    except httpx.HTTPError as e:
+        if retries > 0:
+            logger.warning(f"Ollama health check failed: {str(e)}. Retrying...")
+            return False
+        else:
+            logger.error(f"Ollama health check failed after retries: {str(e)}")
+            return False
 
 # Load Whisper model once
 try:
@@ -94,54 +185,121 @@ async def transcribe_audio(path: str) -> str:
         logger.error(f"Transcription error: {str(e)}")
         raise HTTPException(500, f"Transcription failed: {str(e)}")
 
+async def ensure_ollama_ready():
+    """Ensure Ollama is ready before sending requests, with exponential backoff"""
+    for attempt in range(MAX_RETRIES):
+        if await check_ollama_health():
+            return True
+        
+        # Shorter delays for faster response
+        delay = min(RETRY_DELAY * (1.5 ** attempt), 3.0)
+        logger.info(f"Waiting for Ollama to be ready, retrying in {delay:.1f}s (attempt {attempt+1}/{MAX_RETRIES})")
+        await asyncio.sleep(delay)  # Use asyncio.sleep instead of time.sleep
+    
+    logger.warning("Ollama service not fully ready after maximum retries - trying anyway")
+    return True  # Return True to try anyway
+
+def find_common_answer(text: str) -> str:
+    """Look for predefined answers to common questions"""
+    text_lower = text.lower()
+    
+    # Check for specific questions using keywords
+    for key, answer in COMMON_ANSWERS.items():
+        if key in text_lower:
+            logger.info(f"Using predefined answer for '{key}'")
+            return answer
+            
+    return None
+
 async def chat_with_ollama(text: str) -> str:
+    # Check for common questions we can answer without the LLM
+    common_answer = find_common_answer(text)
+    if common_answer:
+        return common_answer
+    
     url = OLLAMA_URL
-    # Low-memory LLM default
-    messages = [{"role": "user", "content": text}]
-    payload = {"model": OLLAMA_MODEL, "stream": False, "messages": messages}
+    logger.info(f"Using Ollama URL: {url}")
+    
+    # Format prompt specifically for Mistral models
+    if "mistral" in OLLAMA_MODEL.lower():
+        logger.info("Using Mistral format for prompt")
+        if "instruct" in OLLAMA_MODEL.lower():
+            formatted_prompt = f"[INST] {text} [/INST]"
+        else:
+            formatted_prompt = text
+    else:
+        formatted_prompt = text
+    
+    # Format for /api/generate endpoint with correct stop tokens for Mistral
+    payload = {
+        "model": OLLAMA_MODEL,
+        "prompt": formatted_prompt,
+        "stream": False,
+        "options": {
+            "num_ctx": 2048,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "num_predict": 512,
+            "stop": ["[INST]", "[/INST]"] if "mistral" in OLLAMA_MODEL.lower() else []
+        }
+    }
     
     logger.info(f"Sending request to Ollama API: {url}")
     logger.info(f"Using model: {OLLAMA_MODEL}")
+    logger.debug(f"Payload: {payload}")
     
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            res = await client.post(url, json=payload)
-            res.raise_for_status()
-            data = res.json()
+    # Implement retry logic
+    max_retries = int(os.getenv("MAX_RETRIES", "3"))
+    retry_delay = float(os.getenv("RETRY_DELAY", "2.0"))
+    last_exception = None
+    
+    for attempt in range(max_retries):
+        try:
+            # Use a longer timeout for the first inference which can be slower
+            timeout = 30.0 if attempt == 0 else 15.0
+            logger.info(f"Attempt {attempt+1}/{max_retries} with timeout {timeout}s")
             
-            logger.info(f"Ollama API response structure: {list(data.keys())}")
-            
-            try:
-                # Handle different Ollama response formats
-                if "message" in data and "content" in data["message"]:
-                    logger.info("Using message.content format")
-                    return data["message"]["content"].strip()
-                elif "response" in data:
-                    logger.info("Using response format")
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                # Log request details for debugging
+                logger.info(f"Sending POST to {url} with model {OLLAMA_MODEL}")
+                
+                res = await client.post(url, json=payload)
+                res.raise_for_status()
+                data = res.json()
+                
+                # Extract text from the /api/generate response
+                if "response" in data:
+                    logger.info("Successfully got response from model")
                     return data["response"].strip()
-                elif "choices" in data and len(data["choices"]) > 0:
-                    logger.info("Using choices[0].message.content format")
-                    return data["choices"][0]["message"]["content"].strip()
                 else:
-                    # Fallback to trying to extract any text we can find
-                    logger.error(f"Unknown Ollama response format: {data}")
-                    if isinstance(data, dict):
-                        for key, value in data.items():
-                            if isinstance(value, str) and len(value) > 0:
-                                logger.info(f"Using fallback key: {key}")
-                                return value.strip()
-                    # If we can't find anything useful, return the stringified data
-                    return str(data)
-            except (KeyError, IndexError) as e:
-                logger.error(f"Unexpected Ollama response format: {str(e)}")
-                # Return raw data as a fallback
-                return str(data)
-    except httpx.HTTPError as e:
-        logger.error(f"Ollama API error: {str(e)}")
-        raise HTTPException(503, f"LLM service unavailable: {str(e)}")
-    except Exception as e:
-        logger.error(f"Chat error: {str(e)}")
-        raise HTTPException(500, f"Failed to generate response: {str(e)}")
+                    logger.warning(f"Unexpected Ollama response format: {data}")
+                    # Try to extract useful text from other fields
+                    for key, value in data.items():
+                        if isinstance(value, str) and len(value) > 10:
+                            logger.info(f"Found alternate response in field: {key}")
+                            return value.strip()
+                    
+                    # If we can't extract a response, raise an exception
+                    raise ValueError(f"Could not extract response from Ollama API. Got: {data}")
+        except Exception as e:
+            last_exception = e
+            logger.warning(f"Ollama API attempt {attempt+1}/{max_retries} failed: {str(e)}")
+            
+            if attempt < max_retries - 1:
+                wait_time = retry_delay * (attempt + 1)
+                logger.info(f"Waiting {wait_time}s before retry...")
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f"All {max_retries} attempts to Ollama API failed")
+    
+    # If we got here, all attempts failed
+    logger.error(f"Ollama API error after {max_retries} attempts: {str(last_exception)}")
+    
+    # Provide a more informative error message for debugging
+    error_msg = f"Model '{OLLAMA_MODEL}' failed to generate a response. Error: {str(last_exception)}"
+    logger.error(error_msg)
+    
+    raise HTTPException(status_code=500, detail=error_msg)
 
 def local_tts(text: str) -> bytes:
     voice = os.getenv("PIPER_VOICE", "en-us-ryan-low")

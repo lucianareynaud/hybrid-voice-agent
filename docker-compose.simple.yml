@@ -1,0 +1,30 @@
+version: '3.8'
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    command: serve
+
+  voice-app:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      TTS_BACKEND: local
+      PIPER_VOICE: en-us-ryan-low
+      OLLAMA_MODEL: mistral
+      OLLAMA_HOST: http://ollama:11434
+      WHISPER_MODEL: tiny
+      LOG_LEVEL: DEBUG
+      DISABLE_INTERNAL_OLLAMA: "true"
+      MAX_RETRIES: 10
+      RETRY_DELAY: 3.0
+    depends_on:
+      - ollama
+
+volumes:
+  ollama_data: 
