@@ -10,10 +10,10 @@ if [[ "$OLLAMA_HOST" == *"chat:11434"* ]]; then
   export DISABLE_INTERNAL_OLLAMA="true"
 fi
 
-# Create Qwen modelfile for the purevoice-qwen model
-echo "Creating Qwen modelfile..."
+# Create Granite modelfile for the purevoice-granite model
+echo "Creating Granite modelfile..."
 cat > /tmp/qwen-modelfile.txt << 'EOL'
-FROM qwen2.5:3b
+FROM granite3.1-moe:3b
 
 SYSTEM """
 You are a helpful voice assistant called PureVoice. 
@@ -81,17 +81,17 @@ else
     sleep 1
   done
   
-  # Pull the base model first
-  if [ "$OLLAMA_MODEL" == "purevoice-qwen" ]; then
-    echo "Pulling base model qwen2.5:3b..."
-    timeout 300s ollama pull qwen2.5:3b || echo "Base model pull timed out or failed, continuing anyway"
-    
-    echo "Creating custom model purevoice-qwen..."
-    ollama create purevoice-qwen -f /tmp/qwen-modelfile.txt
-    
-    # Warm up the model with a simple query
+  # Pull and create the custom Granite model if configured
+  if [ "$OLLAMA_MODEL" == "purevoice-granite" ]; then
+    echo "Pulling base model granite3.1-moe:3b..."
+    timeout 300s ollama pull granite3.1-moe:3b || echo "Base model pull timed out or failed, continuing anyway"
+
+    echo "Creating custom model purevoice-granite..."
+    ollama create purevoice-granite -f /tmp/qwen-modelfile.txt
+
+    # Warm up the custom model with a simple query
     echo "Warming up custom model with a simple query..."
-    echo "hello" | timeout 30s ollama run purevoice-qwen > /dev/null || echo "Model warm-up failed, continuing anyway"
+    echo "hello" | timeout 30s ollama run purevoice-granite > /dev/null || echo "Model warm-up failed, continuing anyway"
   else
     # Pull the model with a timeout if specified
     echo "Pulling model $OLLAMA_MODEL..."

@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-echo "===== Setting up Qwen2.5 3B model ====="
+echo "===== Setting up Granite3.1-MoE 3B model ====="
 
-# Create Qwen modelfile
-echo "Creating Qwen modelfile..."
+# Create Granite modelfile
+echo "Creating Granite modelfile..."
 cat > /tmp/qwen-modelfile.txt << 'EOL'
-FROM qwen2.5:3b
+FROM granite3.1-moe:3b
 
 SYSTEM """
 You are a helpful voice assistant called PureVoice. 
@@ -22,15 +22,15 @@ PARAMETER stop "<|endoftext|>"
 EOL
 
 # Pull the base model
-echo "Downloading qwen2.5:3b base model..."
-ollama pull qwen2.5:3b
+echo "Downloading granite3.1-moe:3b base model..."
+ollama pull granite3.1-moe:3b
 
 # Create the custom model
-echo "Creating purevoice-qwen model..."
-ollama create purevoice-qwen -f /tmp/qwen-modelfile.txt
+echo "Creating purevoice-granite model..."
+ollama create purevoice-granite -f /tmp/qwen-modelfile.txt
 
 # Warm up the model
 echo "Warming up the model..."
-ollama run purevoice-qwen "Write a short greeting" --verbose=false
+ollama run purevoice-granite "Write a short greeting" --verbose=false
 
-echo "===== Qwen2.5 3B model setup complete =====" 
+echo "===== Granite3.1-MoE 3B model setup complete ====="

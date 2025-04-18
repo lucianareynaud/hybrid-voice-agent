@@ -1,16 +1,16 @@
 #!/bin/bash
 set -e
 
-echo "===== Starting PureVoice AI with Qwen2.5 3B model ====="
+echo "===== Starting PureVoice AI with Granite3.1-MoE 3B model ====="
 
 # Stop any existing containers
 echo "Stopping any existing containers..."
 docker compose down
 
-# Create custom Modelfile for Qwen
-echo "Creating custom Modelfile for Qwen2.5..."
+## Create custom Modelfile for Granite3.1-MoE
+echo "Creating custom Modelfile for Granite3.1-MoE..."
 cat > qwen-modelfile.txt << 'EOL'
-FROM qwen2.5:3b
+FROM granite3.1-moe:3b
 
 SYSTEM """
 You are a helpful voice assistant called PureVoice. 
@@ -27,7 +27,7 @@ EOL
 
 # Start services
 echo "Starting services..."
-OLLAMA_MODEL=purevoice-qwen docker compose up -d
+OLLAMA_MODEL=purevoice-granite docker compose up -d
 
 # Wait for Ollama to be ready (shorter timeout)
 echo "Waiting for Ollama service to initialize..."
@@ -41,17 +41,17 @@ for i in {1..15}; do
 done
 
 # Pull the base model first
-echo "Downloading qwen2.5:3b base model..."
-docker exec hybrid-voice-agent-cursor-ollama-1 ollama pull qwen2.5:3b
+echo "Downloading granite3.1-moe:3b base model..."
+docker exec hybrid-voice-agent-cursor-ollama-1 ollama pull granite3.1-moe:3b
 
 # Copy the Modelfile into the container and create our custom model
-echo "Creating custom purevoice-qwen model..."
+echo "Creating custom purevoice-granite model..."
 docker cp qwen-modelfile.txt hybrid-voice-agent-cursor-ollama-1:/tmp/qwen-modelfile.txt
-docker exec hybrid-voice-agent-cursor-ollama-1 ollama create purevoice-qwen -f /tmp/qwen-modelfile.txt
+docker exec hybrid-voice-agent-cursor-ollama-1 ollama create purevoice-granite -f /tmp/qwen-modelfile.txt
 
 # Warm up the model with a very short prompt
 echo "Warming up the model..."
-docker exec hybrid-voice-agent-cursor-ollama-1 ollama run purevoice-qwen "Hi" --verbose=false
+docker exec hybrid-voice-agent-cursor-ollama-1 ollama run purevoice-granite "Hi" --verbose=false
 
 # Check if the app is running (shorter timeout)
 echo "Checking if the app is ready..."
@@ -59,7 +59,7 @@ for i in {1..10}; do
   if curl -s http://localhost:8000/health > /dev/null; then
     echo "✅ Voice app is ready! Access at: http://localhost:8000"
     echo ""
-    echo "Using model: purevoice-qwen (custom Qwen2.5 3B model)"
+    echo "Using model: purevoice-granite (custom Granite3.1-MoE 3B model)"
     echo "For production deployment at voiceagent.lucianaferreira.pro:"
     echo "1. Configure your reverse proxy (nginx/caddy) to point to this service"
     echo "2. Ensure ports 8000 and 11434 are not exposed to the internet directly"
