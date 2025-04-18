@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-echo "===== Setting up Granite3.1-MoE 3B model ====="
+echo "===== Setting up Granite3.1-MoE 1B model ====="
 
 # Create Granite modelfile
 echo "Creating Granite modelfile..."
 cat > /tmp/qwen-modelfile.txt << 'EOL'
-FROM granite3.1-moe:3b
+FROM granite3.1-moe:1b
 
 SYSTEM """
 You are a helpful voice assistant called PureVoice. 
@@ -22,7 +22,7 @@ PARAMETER stop "<|endoftext|>"
 EOL
 
 # Pull the base model
-echo "Downloading granite3.1-moe:3b base model..."
+echo "Downloading granite3.1-moe:1b base model..."
 ollama pull granite3.1-moe:3b
 
 # Create the custom model

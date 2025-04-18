@@ -7,7 +7,7 @@ Run all components locally with no API keys, no service credits, and zero cloud 
 Your audio and data never leave your machine—enterprise-grade privacy at your fingertips.
 
 ## System Requirements
-- Memory: Whisper 'tiny' uses ~250 MB RAM; Qwen 3B model uses ~4 GB RAM; allow ~6 GB total plus OS overhead (~8 GB+ recommended).
+ - Memory: Whisper 'tiny' uses ~250 MB RAM; Granite3.1-MoE 1B model uses ~2 GB RAM; allow ~3 GB total plus OS overhead (~4 GB+ recommended).
 - CPU: 4+ cores. CPU-only inference can be several times real-time; for low-latency (<300 ms) consider GPU or remote inference.
 - For low-memory setups (<8 GB), use remote chat/TTS backends.
 - Docker and docker-compose installed; ports 8000 and 11434 accessible.
@@ -17,7 +17,7 @@ Your audio and data never leave your machine—enterprise-grade privacy at your 
 ### Using the Simple Docker Setup (Recommended)
 
 ```bash
-# Run the setup script for Qwen model
+# Run the setup script for Granite3.1-MoE 1B model
 ./start-app.sh
 
 # Or manually start with docker-compose
@@ -44,7 +44,7 @@ PureVoice AI supports multiple LLM options:
 
 | Model | Command | RAM Required | Description |
 |-------|---------|--------------|-------------|
-| Qwen 3B | `./start-app.sh` | ~4 GB | Efficient, knowledge-rich model with good reasoning abilities |
+| Granite3.1-MoE 1B | `./start-app.sh` | ~2 GB | Efficient, balanced model with good reasoning abilities |
 | Custom | Edit docker-compose.simple.yml | Varies | Set any Ollama-compatible model in the configuration |
 
 > **Note**: The first run downloads the selected model, which may take time depending on your connection speed. Models are cached for subsequent runs.
@@ -53,9 +53,9 @@ PureVoice AI supports multiple LLM options:
 | Component | Model                | RAM Used |
 |-----------|----------------------|----------|
 | ASR       | whisper **tiny**     | ~250 MB  |
-| LLM       | **Qwen 3B**          | ~4 GB    |
+| LLM       | **Granite3.1-MoE 1B** | ~2 GB    |
 | TTS       | piper en-us-ryan-low | ~150 MB  |
-> Fits comfortably in 8 GB free RAM.
+> Fits comfortably in 4 GB free RAM.
 
 ## Troubleshooting
 

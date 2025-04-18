@@ -1,7 +1,7 @@
 pydantic<2.0.0          # FastAPI requirement
 fastapi                  # Web framework
 uvicorn                  # ASGI server
-httpx                    # Ollama chat (Qwen 3B model)
+httpx                    # Ollama chat (Granite3.1-MoE 1B model)
 python-multipart         # File upload support
 python-dotenv            # Environment vars
 faster-whisper           # Audio transcription

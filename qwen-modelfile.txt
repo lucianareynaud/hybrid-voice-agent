@@ -1,4 +1,4 @@
-FROM granite3.1-moe:3b
+FROM granite3.1-moe:1b
 
 SYSTEM """
 You are a helpful voice assistant called PureVoice. 

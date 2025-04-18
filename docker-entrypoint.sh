@@ -13,7 +13,7 @@ fi
 # Create Granite modelfile for the purevoice-granite model
 echo "Creating Granite modelfile..."
 cat > /tmp/qwen-modelfile.txt << 'EOL'
-FROM granite3.1-moe:3b
+FROM granite3.1-moe:1b
 
 SYSTEM """
 You are a helpful voice assistant called PureVoice. 
@@ -83,8 +83,8 @@ else
   
   # Pull and create the custom Granite model if configured
   if [ "$OLLAMA_MODEL" == "purevoice-granite" ]; then
-    echo "Pulling base model granite3.1-moe:3b..."
-    timeout 300s ollama pull granite3.1-moe:3b || echo "Base model pull timed out or failed, continuing anyway"
+    echo "Pulling base model granite3.1-moe:1b..."
+    timeout 300s ollama pull granite3.1-moe:1b || echo "Base model pull timed out or failed, continuing anyway"
 
     echo "Creating custom model purevoice-granite..."
     ollama create purevoice-granite -f /tmp/qwen-modelfile.txt

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "===== Starting PureVoice AI with Granite3.1-MoE 3B model ====="
+echo "===== Starting PureVoice AI with Granite3.1-MoE 1B model ====="
 
 # Stop any existing containers
 echo "Stopping any existing containers..."
@@ -10,7 +10,7 @@ docker compose down
 ## Create custom Modelfile for Granite3.1-MoE
 echo "Creating custom Modelfile for Granite3.1-MoE..."
 cat > qwen-modelfile.txt << 'EOL'
-FROM granite3.1-moe:3b
+FROM granite3.1-moe:1b
 
 SYSTEM """
 You are a helpful voice assistant called PureVoice. 
@@ -59,7 +59,7 @@ for i in {1..10}; do
   if curl -s http://localhost:8000/health > /dev/null; then
     echo "✅ Voice app is ready! Access at: http://localhost:8000"
     echo ""
-    echo "Using model: purevoice-granite (custom Granite3.1-MoE 3B model)"
+    echo "Using model: purevoice-granite (custom Granite3.1-MoE 1B model)"
     echo "For production deployment at voiceagent.lucianaferreira.pro:"
     echo "1. Configure your reverse proxy (nginx/caddy) to point to this service"
     echo "2. Ensure ports 8000 and 11434 are not exposed to the internet directly"
