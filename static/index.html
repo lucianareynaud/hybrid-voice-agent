@@ -1,38 +1,93 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <title>Hybrid Voice Agent Demo</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PureVoice AI</title>
+    <style>
+      body { font-family: sans-serif; text-align: center; padding: 2rem; }
+      #mic-icon { width: 64px; height: 64px; margin-bottom: 1rem; }
+      #record-btn { padding: 1rem 2rem; font-size: 1.25rem; border: 2px solid #333; border-radius: 6px; cursor: pointer; }
+      #record-btn.recording { background: #e33; color: #fff; }
+      #waveform { width: 80%; height: 100px; margin: 1rem auto; background: #f0f0f0; }
+      .panel { width: 80%; max-width: 600px; margin: 1rem auto; padding: .75rem; border: 1px solid #ddd; border-radius: 4px; min-height: 2rem; }
+    </style>
 </head>
 <body>
-  <button id="rec" style="font-size:20px;padding:10px 20px;">Hold to Talk</button>
-  <div><h3>Transcript</h3><div id="transcript"></div></div>
-  <div><h3>Response</h3><div id="response"></div></div>
+  <img id="mic-icon" src="/static/microphone-342.svg" alt="Microphone icon">
+  <button id="record-btn">Segure para Falar</button>
+  <p>Pressione e segure, fale em Português, então solte.</p>
+  <canvas id="waveform"></canvas>
+  <div id="transcript" class="panel">O transcript aparecerá aqui...</div>
+  <div id="response" class="panel">A resposta será reproduzida automaticamente...</div>
   <script>
-    let recorder, chunks;
-    const rec = document.getElementById('rec');
-    rec.onmousedown = async () => {
-      document.getElementById('transcript').textContent = '';
-      document.getElementById('response').textContent = '';
-      const stream = await navigator.mediaDevices.getUserMedia({audio: true});
-      recorder = new MediaRecorder(stream, {mimeType:'audio/webm'});
+    let recorder, chunks, audioCtx, analyser, dataArray, animationId, micStream;
+    const btn = document.getElementById('record-btn');
+    const canvas = document.getElementById('waveform');
+    const ctx = canvas.getContext('2d');
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+
+    function draw() {
+      animationId = requestAnimationFrame(draw);
+      analyser.getByteTimeDomainData(dataArray);
+      ctx.fillStyle = '#f0f0f0'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.lineWidth = 2; ctx.strokeStyle = '#333'; ctx.beginPath();
+      const sliceW = canvas.width / dataArray.length;
+      let x = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = v * (canvas.height / 2);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        x += sliceW;
+      }
+      ctx.lineTo(canvas.width, canvas.height / 2);
+      ctx.stroke();
+    }
+
+    btn.addEventListener('mousedown', async () => {
+      btn.classList.add('recording'); btn.textContent = 'Gravando...';
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioCtx.createMediaStreamSource(micStream);
+      analyser = audioCtx.createAnalyser(); analyser.fftSize = 256;
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+      source.connect(analyser);
+      draw();
+
+      recorder = new MediaRecorder(micStream, { mimeType: 'audio/webm' });
       chunks = [];
       recorder.ondataavailable = e => chunks.push(e.data);
       recorder.start();
-    };
-    rec.onmouseup = async () => {
+    });
+
+    btn.addEventListener('mouseup', async () => {
       recorder.stop();
-      recorder.onstop = async () => {
-        const blob = new Blob(chunks, {type:'audio/webm'});
-        const form = new FormData();
-        form.append('audio', blob, 'rec.webm');
-        const res = await fetch('/process', {method:'POST', body:form});
-        const data = await res.json();
-        document.getElementById('transcript').textContent = data.transcript;
-        document.getElementById('response').textContent = data.response_text;
-        new Audio('data:audio/mp3;base64,'+data.audio_base64).play();
-      };
-    };
+      cancelAnimationFrame(animationId);
+      micStream.getTracks().forEach(t => t.stop());
+      btn.classList.remove('recording'); btn.textContent = 'Processando...';
+
+      const blob = new Blob(chunks, { type: 'audio/webm' });
+      const form = new FormData(); form.append('audio', blob, 'input.webm');
+      const transcriptEl = document.getElementById('transcript');
+      const responseEl   = document.getElementById('response');
+      transcriptEl.textContent = 'Transcrevendo…';
+      responseEl.textContent   = '';
+      try {
+        const res = await fetch('/process', { method: 'POST', body: form });
+        const json = await res.json();
+        transcriptEl.textContent = json.transcript;
+        const audio = new Audio('data:audio/mp3;base64,' + json.audio_base64);
+        audio.play();
+        responseEl.textContent = 'Reproduzindo resposta…';
+        audio.onended = () => responseEl.textContent = json.response_text;
+      } catch (err) {
+        console.error(err);
+        transcriptEl.textContent = 'Erro no processamento';
+      } finally {
+        btn.textContent = 'Segure para Falar';
+      }
+    });
   </script>
 </body>
 </html>

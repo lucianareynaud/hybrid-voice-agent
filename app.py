@@ -99,6 +99,7 @@ def openai_tts(text: str) -> bytes:
 
 @app.post("/process")
 async def process(audio: UploadFile = File(...)):
+    print("[DEBUG] Received /process request, filename:", audio.filename)
     suffix = os.path.splitext(audio.filename)[1] or ".webm"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(await audio.read())
