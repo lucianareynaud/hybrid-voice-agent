@@ -1,9 +1,8 @@
-fastapi
-uvicorn[standard]
-faster-whisper==1.0.1
-piper-tts==1.2.0
-httpx                    # Ollama chat (default phi3:mini low-mem)
-python-dotenv
-elevenlabs               # optional
-openai                   # optional
-python-multipart
+pydantic<2.0.0          # FastAPI requirement
+fastapi                  # Web framework
+uvicorn                  # ASGI server
+httpx                    # Ollama chat (Qwen 3B model)
+python-multipart         # File upload support
+python-dotenv            # Environment vars
+faster-whisper           # Audio transcription
+piper-tts                # Voice generation

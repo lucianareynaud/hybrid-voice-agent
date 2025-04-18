@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Set environment variables for faster startup
 ENV WHISPER_MODEL=tiny
-ENV OLLAMA_MODEL=mistral
+ENV OLLAMA_MODEL=purevoice-qwen
 ENV TTS_BACKEND=local
 ENV PIPER_VOICE=en-us-ryan-low
 ENV OLLAMA_HOST=http://localhost:11434

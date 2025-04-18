@@ -10,6 +10,24 @@ if [[ "$OLLAMA_HOST" == *"chat:11434"* ]]; then
   export DISABLE_INTERNAL_OLLAMA="true"
 fi
 
+# Create Qwen modelfile for the purevoice-qwen model
+echo "Creating Qwen modelfile..."
+cat > /tmp/qwen-modelfile.txt << 'EOL'
+FROM qwen2.5:3b
+
+SYSTEM """
+You are a helpful voice assistant called PureVoice. 
+You have access to a vast knowledge base and can answer questions on many topics.
+Never say you don't have certain capabilities or access to information.
+Always try to provide a helpful, concise response.
+If you truly don't know something, you can say "I'm not sure about that" instead of saying you lack capabilities.
+"""
+
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER stop "<|endoftext|>"
+EOL
+
 # Check if we should disable internal Ollama
 if [[ "$DISABLE_INTERNAL_OLLAMA" == "true" ]]; then
   echo "Internal Ollama service disabled. Using external Ollama service at $OLLAMA_HOST"
@@ -63,8 +81,19 @@ else
     sleep 1
   done
   
-  # Pull the model with a timeout if specified
-  if [ -n "$OLLAMA_MODEL" ]; then
+  # Pull the base model first
+  if [ "$OLLAMA_MODEL" == "purevoice-qwen" ]; then
+    echo "Pulling base model qwen2.5:3b..."
+    timeout 300s ollama pull qwen2.5:3b || echo "Base model pull timed out or failed, continuing anyway"
+    
+    echo "Creating custom model purevoice-qwen..."
+    ollama create purevoice-qwen -f /tmp/qwen-modelfile.txt
+    
+    # Warm up the model with a simple query
+    echo "Warming up custom model with a simple query..."
+    echo "hello" | timeout 30s ollama run purevoice-qwen > /dev/null || echo "Model warm-up failed, continuing anyway"
+  else
+    # Pull the model with a timeout if specified
     echo "Pulling model $OLLAMA_MODEL..."
     timeout 120s ollama pull $OLLAMA_MODEL || echo "Model pull timed out or failed, continuing anyway"
     

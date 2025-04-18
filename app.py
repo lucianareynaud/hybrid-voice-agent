@@ -14,22 +14,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from faster_whisper import WhisperModel
 import httpx
 
-# Optional ElevenLabs SDK
-try:
-    from elevenlabs import generate, set_api_key
-    ELEVENLABS_AVAILABLE = True
-    set_api_key(os.getenv("ELEVENLABS_API_KEY", ""))
-except ImportError:
-    ELEVENLABS_AVAILABLE = False
-
-# Optional OpenAI SDK
-try:
-    import openai
-    OPENAI_AVAILABLE = True
-    openai.api_key = os.getenv("OPENAI_API_KEY", "")
-except ImportError:
-    OPENAI_AVAILABLE = False
-
 # Load environment variables
 load_dotenv()
 
@@ -42,10 +26,11 @@ logger = logging.getLogger(__name__)
 
 # Low-memory model defaults
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "tiny")
-OLLAMA_MODEL  = os.getenv("OLLAMA_MODEL", "phi3:mini")
+OLLAMA_MODEL  = os.getenv("OLLAMA_MODEL", "purevoice-qwen")
 OLLAMA_HOST   = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_URL    = f"{OLLAMA_HOST}/api/generate"
 OLLAMA_HEALTH_URL = f"{OLLAMA_HOST}/api/version"
+OLLAMA_SYSTEM_PROMPT = os.getenv("OLLAMA_SYSTEM_PROMPT", "")
 MAX_RETRIES   = int(os.getenv("MAX_RETRIES", "3"))
 RETRY_DELAY   = float(os.getenv("RETRY_DELAY", "0.5"))
 
@@ -58,16 +43,19 @@ COMMON_ANSWERS = {
 
 # FastAPI init
 app = FastAPI(
-    title="Voice Assistant API",
-    description="A hybrid voice assistant using Whisper, Ollama, and TTS",
+    title="PureVoice AI Assistant",
+    description="A privacy-focused voice assistant using Whisper, Ollama, and Piper TTS",
     version="1.0.0"
 )
 
 # Add CORS middleware
+# Allow local development origins and file:// (null) for development flexibility
 allowed_origins = [
     "http://localhost:8000",
+    "http://127.0.0.1:8000",
     "http://0.0.0.0:8000",
-    "https://localvoice.lucianaferreira.pro"
+    "https://localvoice.lucianaferreira.pro",
+    "null"
 ]
 
 app.add_middleware(
@@ -87,7 +75,7 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    # Check Ollama health with better diagnostics
+    # Check Ollama health
     try:
         ollama_status = await check_ollama_health()
         # Check if model is loaded
@@ -116,7 +104,7 @@ async def health_check():
         ollama_status = False
         model_loaded = False
     
-    # Check Whisper model status with more details
+    # Check Whisper model status
     whisper_status = model is not None
     whisper_detail = "loaded" if whisper_status else "not loaded"
     
@@ -142,8 +130,8 @@ async def health_check():
                 "model": WHISPER_MODEL
             },
             "tts": {
-                "backend": os.getenv("TTS_BACKEND", "local"),
-                "voice": os.getenv("PIPER_VOICE", "en-us-ryan-low") if os.getenv("TTS_BACKEND", "local") == "local" else "default"
+                "backend": "local",
+                "voice": os.getenv("PIPER_VOICE", "en-us-ryan-low")
             }
         }
     }
@@ -167,6 +155,26 @@ async def check_ollama_health(retries=1):
             logger.error(f"Ollama health check failed after retries: {str(e)}")
             return False
 
+async def test_generate():
+    """Test if model can generate a response"""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            payload = {
+                "model": OLLAMA_MODEL,
+                "prompt": "hello",
+                "stream": False
+            }
+            response = await client.post(OLLAMA_URL, json=payload)
+            if response.status_code == 200:
+                logger.info(f"Model {OLLAMA_MODEL} is ready to generate")
+                return True
+            else:
+                logger.warning(f"Model {OLLAMA_MODEL} generation test failed with status {response.status_code}")
+                return False
+    except Exception as e:
+        logger.warning(f"Generation test error: {str(e)}")
+        return False
+
 # Load Whisper model once
 try:
     model = WhisperModel(WHISPER_MODEL, device="auto")
@@ -188,16 +196,31 @@ async def transcribe_audio(path: str) -> str:
 async def ensure_ollama_ready():
     """Ensure Ollama is ready before sending requests, with exponential backoff"""
     for attempt in range(MAX_RETRIES):
-        if await check_ollama_health():
-            return True
-        
-        # Shorter delays for faster response
-        delay = min(RETRY_DELAY * (1.5 ** attempt), 3.0)
-        logger.info(f"Waiting for Ollama to be ready, retrying in {delay:.1f}s (attempt {attempt+1}/{MAX_RETRIES})")
-        await asyncio.sleep(delay)  # Use asyncio.sleep instead of time.sleep
-    
-    logger.warning("Ollama service not fully ready after maximum retries - trying anyway")
-    return True  # Return True to try anyway
+        try:
+            # Check API health first
+            if not await check_ollama_health():
+                logger.warning(f"Ollama API not healthy on attempt {attempt+1}/{MAX_RETRIES}")
+                delay = min(RETRY_DELAY * (1.5 ** attempt), 3.0)
+                await asyncio.sleep(delay)
+                continue
+                
+            # Now test generation
+            if await test_generate():
+                logger.info("Model is successfully generating responses")
+                return True
+                
+            # If we got here, the API is up but generate failed
+            logger.warning(f"Waiting for model to be ready for generation, attempt {attempt+1}/{MAX_RETRIES}")
+            delay = min(RETRY_DELAY * (1.5 ** attempt), 3.0)
+            await asyncio.sleep(delay)
+            
+        except Exception as e:
+            logger.warning(f"Error in ensure_ollama_ready: {str(e)}")
+            delay = min(RETRY_DELAY * (1.5 ** attempt), 3.0)
+            await asyncio.sleep(delay)
+            
+    logger.warning(f"Ollama model generation readiness check failed after {MAX_RETRIES} retries")
+    return False
 
 def find_common_answer(text: str) -> str:
     """Look for predefined answers to common questions"""
@@ -217,89 +240,58 @@ async def chat_with_ollama(text: str) -> str:
     if common_answer:
         return common_answer
     
+    # Ensure Ollama is ready
+    if not await ensure_ollama_ready():
+        raise HTTPException(503, "Language model service is not available right now. Please try again in a moment.")
+    
     url = OLLAMA_URL
     logger.info(f"Using Ollama URL: {url}")
     
-    # Format prompt specifically for Mistral models
-    if "mistral" in OLLAMA_MODEL.lower():
-        logger.info("Using Mistral format for prompt")
-        if "instruct" in OLLAMA_MODEL.lower():
-            formatted_prompt = f"[INST] {text} [/INST]"
-        else:
-            formatted_prompt = text
-    else:
-        formatted_prompt = text
-    
-    # Format for /api/generate endpoint with correct stop tokens for Mistral
+    # Use a more minimal payload with just what's needed
     payload = {
         "model": OLLAMA_MODEL,
-        "prompt": formatted_prompt,
-        "stream": False,
-        "options": {
-            "num_ctx": 2048,
-            "temperature": 0.7,
-            "top_p": 0.9,
-            "num_predict": 512,
-            "stop": ["[INST]", "[/INST]"] if "mistral" in OLLAMA_MODEL.lower() else []
-        }
+        "prompt": text,
+        "stream": False
     }
     
-    logger.info(f"Sending request to Ollama API: {url}")
-    logger.info(f"Using model: {OLLAMA_MODEL}")
-    logger.debug(f"Payload: {payload}")
+    # Add system prompt if available
+    if OLLAMA_SYSTEM_PROMPT:
+        logger.info("Using custom system prompt")
+        payload["system"] = OLLAMA_SYSTEM_PROMPT
     
-    # Implement retry logic
-    max_retries = int(os.getenv("MAX_RETRIES", "3"))
-    retry_delay = float(os.getenv("RETRY_DELAY", "2.0"))
-    last_exception = None
+    logger.info(f"Sending request to Ollama API using model: {OLLAMA_MODEL}")
     
-    for attempt in range(max_retries):
-        try:
-            # Use a longer timeout for the first inference which can be slower
-            timeout = 30.0 if attempt == 0 else 15.0
-            logger.info(f"Attempt {attempt+1}/{max_retries} with timeout {timeout}s")
+    # Increase timeout for better reliability
+    timeout = 10.0
             
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                # Log request details for debugging
-                logger.info(f"Sending POST to {url} with model {OLLAMA_MODEL}")
-                
-                res = await client.post(url, json=payload)
-                res.raise_for_status()
-                data = res.json()
-                
-                # Extract text from the /api/generate response
-                if "response" in data:
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            res = await client.post(url, json=payload)
+            res.raise_for_status()
+            data = res.json()
+            
+            # Extract text from the /api/generate response
+            if "response" in data:
+                response = data["response"].strip()
+                if response:
                     logger.info("Successfully got response from model")
-                    return data["response"].strip()
+                    return response
                 else:
-                    logger.warning(f"Unexpected Ollama response format: {data}")
-                    # Try to extract useful text from other fields
-                    for key, value in data.items():
-                        if isinstance(value, str) and len(value) > 10:
-                            logger.info(f"Found alternate response in field: {key}")
-                            return value.strip()
-                    
-                    # If we can't extract a response, raise an exception
-                    raise ValueError(f"Could not extract response from Ollama API. Got: {data}")
-        except Exception as e:
-            last_exception = e
-            logger.warning(f"Ollama API attempt {attempt+1}/{max_retries} failed: {str(e)}")
-            
-            if attempt < max_retries - 1:
-                wait_time = retry_delay * (attempt + 1)
-                logger.info(f"Waiting {wait_time}s before retry...")
-                await asyncio.sleep(wait_time)
+                    logger.warning("Received empty response from Ollama")
+                    return "I'm sorry, I don't have a response for that."
             else:
-                logger.error(f"All {max_retries} attempts to Ollama API failed")
-    
-    # If we got here, all attempts failed
-    logger.error(f"Ollama API error after {max_retries} attempts: {str(last_exception)}")
-    
-    # Provide a more informative error message for debugging
-    error_msg = f"Model '{OLLAMA_MODEL}' failed to generate a response. Error: {str(last_exception)}"
-    logger.error(error_msg)
-    
-    raise HTTPException(status_code=500, detail=error_msg)
+                logger.warning(f"Unexpected Ollama response format: {data}")
+                return "I don't understand that question. Could you try asking in a different way?"
+    except httpx.RequestError as e:
+        logger.error(f"Connection error when talking to Ollama: {e}")
+        # propagate as a service unavailable
+        raise HTTPException(503, "Language model service is not available right now. Please try again later.")
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Ollama API returned error status: {e.response.status_code} - {e}")
+        raise HTTPException(e.response.status_code, f"LLM service error: {e.response.text}")
+    except Exception as e:
+        logger.error(f"Unexpected error in Ollama API call: {e}")
+        raise HTTPException(500, "Internal error while querying language model.")
 
 def local_tts(text: str) -> bytes:
     voice = os.getenv("PIPER_VOICE", "en-us-ryan-low")
@@ -380,35 +372,13 @@ def local_tts(text: str) -> bytes:
         logger.error(f"TTS error: {str(e)}")
         raise HTTPException(500, f"TTS error: {str(e)}")
 
-def elevenlabs_tts(text: str) -> bytes:
-    if not ELEVENLABS_AVAILABLE:
-        raise HTTPException(500, "ElevenLabs SDK not installed or key missing")
-    try:
-        resp = generate(text=text, voice="Rachel", model="eleven_monolingual_v1", stream=False)
-        return resp.read()
-    except Exception as e:
-        logger.error(f"ElevenLabs error: {str(e)}")
-        raise HTTPException(500, f"ElevenLabs TTS error: {str(e)}")
-
-def openai_tts(text: str) -> bytes:
-    if not OPENAI_AVAILABLE:
-        raise HTTPException(500, "OpenAI SDK not installed or key missing")
-    try:
-        resp = openai.Audio.create(
-            model="tts-1", voice="alloy", input=text, response_format="b64_json"
-        )
-        b64 = resp.get("audio")
-        if not b64:
-            raise HTTPException(500, "Bad response from OpenAI TTS")
-        return base64.b64decode(b64)
-    except Exception as e:
-        logger.error(f"OpenAI TTS error: {str(e)}")
-        raise HTTPException(500, f"OpenAI TTS error: {str(e)}")
-
 @app.post("/process")
 async def process(audio: UploadFile = File(...)):
     if not audio:
         raise HTTPException(400, "No audio file uploaded")
+        
+    if not model:
+        raise HTTPException(503, "Speech recognition model not available")
         
     tmp_dir = tempfile.mkdtemp()
     webm_path = os.path.join(tmp_dir, "input.webm")
@@ -425,79 +395,30 @@ async def process(audio: UploadFile = File(...)):
         if ff.returncode != 0:
             error_msg = ff.stderr.decode().strip()
             logger.error(f"ffmpeg error: {error_msg}")
-            raise HTTPException(500, f"ffmpeg error: {error_msg}")
+            raise HTTPException(500, f"Audio conversion error: {error_msg}")
             
-        try:
-            transcript = await transcribe_audio(wav_path)
-            logger.info(f"Transcribed text: {transcript}")
-            
-            if not transcript or transcript.strip() == "":
-                logger.warning("Empty transcript from Whisper")
-                raise HTTPException(400, "Could not understand audio. Please try again.")
-                
-            response_text = await chat_with_ollama(transcript)
-            
-            if not response_text or response_text.strip() == "":
-                logger.warning("Empty response from Ollama")
-                response_text = "I'm sorry, I couldn't generate a proper response. Please try again."
-                
-        except Exception as e:
-            logger.error(f"Processing error: {str(e)}")
-            raise HTTPException(500, str(e))
-
-        # Select TTS backend and corresponding voice name
-        backend = os.getenv("TTS_BACKEND", "local").lower()
-        audio_bytes = None
-        voice_name = "Unknown"
+        # Transcribe the audio
+        transcript = await transcribe_audio(wav_path)
+        logger.info(f"Transcribed text: {transcript}")
         
-        # Try the selected backend first
-        try:
-            if backend == "local":
-                voice_name = os.getenv("PIPER_VOICE", "en-us-ryan-low")
-                audio_bytes = local_tts(response_text)
-            elif backend == "elevenlabs":
-                voice_name = "Rachel"
-                audio_bytes = elevenlabs_tts(response_text)
-            elif backend == "openai":
-                voice_name = "alloy"
-                audio_bytes = openai_tts(response_text)
-            else:
-                logger.error(f"Unknown TTS_BACKEND: {backend}")
-                raise ValueError(f"Unknown TTS_BACKEND: {backend}")
-        except Exception as tts_error:
-            # If there's an error, log it and try a simple fallback
-            logger.error(f"Error with {backend} TTS: {str(tts_error)}")
+        if not transcript or transcript.strip() == "":
+            logger.warning("Empty transcript from Whisper")
+            raise HTTPException(400, "Could not understand audio. Please try again.")
             
-            # Fallback to a simple wav generation if all else fails
-            try:
-                logger.info("Falling back to simple audio generation")
-                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as fallback_wav:
-                    fallback_path = fallback_wav.name
-                
-                # Generate a simple beep sound as fallback
-                simple_wav = subprocess.run(
-                    ["ffmpeg", "-f", "lavfi", "-i", "sine=frequency=1000:duration=1", 
-                     "-ar", "44100", "-ac", "1", fallback_path, "-y"],
-                    capture_output=True
-                )
-                
-                with open(fallback_path, "rb") as f:
-                    audio_bytes = f.read()
-                    
-                os.unlink(fallback_path)
-                voice_name = "Fallback"
-            except Exception as fallback_error:
-                logger.error(f"Fallback audio generation failed: {str(fallback_error)}")
-                # Last resort - return empty audio
-                audio_bytes = b''
-                voice_name = "None"
+        # Get response from the language model
+        response_text = await chat_with_ollama(transcript)
+        
+        if not response_text or response_text.strip() == "":
+            logger.warning("Empty response from Ollama")
+            raise HTTPException(500, "The language model returned an empty response. Please try again.")
+        
+        # Generate speech from the response text
+        voice_name = os.getenv("PIPER_VOICE", "en-us-ryan-low")
+        audio_bytes = local_tts(response_text)
 
-        # Make sure we have some audio bytes to return
-        if not audio_bytes:
-            logger.warning("No audio data generated")
-            audio_bytes = b''
-
+        # Encode audio as base64
         b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        
         return JSONResponse({
             "transcript": transcript,
             "response_text": response_text,

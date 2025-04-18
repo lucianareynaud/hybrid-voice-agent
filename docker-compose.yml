@@ -1,92 +1,76 @@
-version: '3.8'
 services:
   chat:
     image: ollama/ollama:latest
-    command: serve
+    container_name: ollama-chat
     ports:
-      - "127.0.0.1:11435:11434"
+      - "11434:11434"
     volumes:
-      - ollama_data:/ollama/data
-    restart: unless-stopped
-    networks:
-      - voice_network
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_NUM_PARALLEL=4
+      - OLLAMA_KEEP_ALIVE=30m
+      - OLLAMA_HOST=0.0.0.0:11434
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version", "||", "exit", "1"]
-      interval: 20s
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      interval: 10s
       timeout: 10s
-      retries: 5
-      start_period: 60s
+      retries: 20
+      start_period: 30s
     deploy:
       resources:
         limits:
-          cpus: '4.0'
-          memory: 12G
-        reservations:
-          cpus: '2.0'
           memory: 8G
+        reservations:
+          memory: 4G
+    restart: unless-stopped
 
   model-setup:
-    image: ollama/ollama:latest
+    image: curlimages/curl:latest
+    container_name: ollama-model-setup
+    entrypoint: ["sh", "-c"]
+    command: |
+      "while ! curl -s --fail http://chat:11434/api/version; do
+        echo 'Waiting for Ollama API to be available...'
+        sleep 2
+      done &&
+      echo 'Pulling model: ${OLLAMA_MODEL:-phi3:mini}' &&
+      curl -X POST http://chat:11434/api/pull -d '{\"name\":\"${OLLAMA_MODEL:-phi3:mini}\"}' &&
+      echo 'Model setup complete'"
     depends_on:
       chat:
         condition: service_healthy
-    restart: "no"
-    networks:
-      - voice_network
-    volumes:
-      - ./scripts:/scripts
-    command: >
-      sh -c "
-        echo 'Downloading and warming up Mistral...' &&
-        (ollama pull mistral:latest && ollama run mistral 'Write a short greeting' --verbose=false) &&
-        echo 'Model cache is warm and ready!'
-      "
     environment:
-      OLLAMA_HOST: chat:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-phi3:mini}
 
   app:
     build: .
+    container_name: voice-app
     ports:
-      - "127.0.0.1:8000:8000"
-    environment:
-      TTS_BACKEND: local
-      PIPER_VOICE: en-us-ryan-low
-      OLLAMA_MODEL: mistral
-      OLLAMA_HOST: http://chat:11434
-      WHISPER_MODEL: tiny
-      LOG_LEVEL: DEBUG
-      MAX_RETRIES: 5
-      RETRY_DELAY: 1.0
-      DISABLE_INTERNAL_OLLAMA: "true"
-    volumes:
-      - ./static:/app/static
-      - whisper_models:/root/.cache/huggingface/hub
-      - piper_models:/root/.local/share/piper/
-    networks:
-      - voice_network
+      - "8000:8000"
     depends_on:
       model-setup:
         condition: service_completed_successfully
-    restart: unless-stopped
+    environment:
+      - OLLAMA_HOST=http://chat:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-phi3:mini}
+      - OLLAMA_SYSTEM_PROMPT=${OLLAMA_SYSTEM_PROMPT:-}
+      - PIPER_VOICE=en-us-ryan-low
+      - WHISPER_MODEL=tiny
+      - LOG_LEVEL=DEBUG
+      - MAX_RETRIES=10
+      - RETRY_DELAY=1.0
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
+      timeout: 5s
+      retries: 5
     deploy:
       resources:
         limits:
-          cpus: '2.0'
-          memory: 4G
-        reservations:
           memory: 2G
-
-networks:
-  voice_network:
-    driver: bridge
+        reservations:
+          memory: 1G
+    restart: unless-stopped
 
 volumes:
-  ollama_data:
-  whisper_models:
-  piper_models:
+  ollama-data: 

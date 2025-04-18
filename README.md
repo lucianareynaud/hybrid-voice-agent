@@ -7,9 +7,9 @@ Run all components locally with no API keys, no service credits, and zero cloud 
 Your audio and data never leave your machine—enterprise-grade privacy at your fingertips.
 
 ## System Requirements
-- Memory: Whisper 'small' uses ~2–3 GB RAM; Ollama models use varying RAM (Mistral 7B: ~8-10 GB, Phi3-mini: ~4 GB); allow ~14 GB total plus OS overhead (~16 GB+ recommended).
+- Memory: Whisper 'tiny' uses ~250 MB RAM; Qwen 3B model uses ~4 GB RAM; allow ~6 GB total plus OS overhead (~8 GB+ recommended).
 - CPU: 4+ cores. CPU-only inference can be several times real-time; for low-latency (<300 ms) consider GPU or remote inference.
-- For low-memory setups (<8 GB), use `WHISPER_MODEL=tiny` (~200 MB) and Phi3-mini, or use remote chat/TTS backends.
+- For low-memory setups (<8 GB), use remote chat/TTS backends.
 - Docker and docker-compose installed; ports 8000 and 11434 accessible.
 
 ## Quick Start
@@ -17,8 +17,8 @@ Your audio and data never leave your machine—enterprise-grade privacy at your 
 ### Using the Simple Docker Setup (Recommended)
 
 ```bash
-# Run the setup script for Mistral model
-./run-mistral.sh
+# Run the setup script for Qwen model
+./start-app.sh
 
 # Or manually start with docker-compose
 docker-compose -f docker-compose.simple.yml up -d
@@ -44,20 +44,18 @@ PureVoice AI supports multiple LLM options:
 
 | Model | Command | RAM Required | Description |
 |-------|---------|--------------|-------------|
-| Mistral 7B | `./run-mistral.sh` | ~10 GB | Powerful open-source 7B parameter model with strong reasoning |
-| Phi3-mini | `docker run --rm -p 8000:8000 -e OLLAMA_MODEL=phi3:mini voice-agent` | ~4 GB | Compact 3.8B model, good for lower-spec machines |
+| Qwen 3B | `./start-app.sh` | ~4 GB | Efficient, knowledge-rich model with good reasoning abilities |
 | Custom | Edit docker-compose.simple.yml | Varies | Set any Ollama-compatible model in the configuration |
 
 > **Note**: The first run downloads the selected model, which may take time depending on your connection speed. Models are cached for subsequent runs.
 
 ## Minimum Specs
-| Component | Model                 | RAM Used |
-|-----------|-----------------------|----------|
-| ASR       | whisper **tiny**      | ~0.5 GB   |
-| LLM       | **phi3:mini** (3.8 B) | ~3.5 GB   |
-| TTS       | piper en-us-ryan-low  | ~0.2 GB   |
+| Component | Model                | RAM Used |
+|-----------|----------------------|----------|
+| ASR       | whisper **tiny**     | ~250 MB  |
+| LLM       | **Qwen 3B**          | ~4 GB    |
+| TTS       | piper en-us-ryan-low | ~150 MB  |
 > Fits comfortably in 8 GB free RAM.
-> To upgrade quality, use Mistral (needs ≈14 GB free) or bump to **WHISPER_MODEL=small**.
 
 ## Troubleshooting
 
@@ -95,4 +93,4 @@ export TTS_BACKEND=openai      # plus OPENAI_API_KEY
 - LoRA fine‑tuning for custom domain-specific language
 - Front‑end subtitles with word‑level timing
 
-MIT License
+Apache 2.0 License
