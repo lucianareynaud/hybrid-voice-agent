@@ -1,6 +1,7 @@
-# hybrid-voice-agent – Zero-cost, browser-based voice bot POC
+# PureVoice AI — Your voice, your AI. 100% private.
 
-Welcome to **hybrid-voice-agent**, the world’s first fully offline, privacy-first browser-based voice bot.
+Welcome to **PureVoice AI**, the next-generation offline voice assistant.
+100% private, fully customizable, and enterprise-grade.
 This white-label solution is fully customizable for any industry or domain.
 Run all components locally with no API keys, no service credits, and zero cloud dependencies.
 Your audio and data never leave your machine—enterprise-grade privacy at your fingertips.
