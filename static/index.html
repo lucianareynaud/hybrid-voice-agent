@@ -10,40 +10,68 @@
     html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #fff; color: #000; }
     body { display: flex; align-items: center; justify-content: center; }
     #app { width: 90%; max-width: 400px; text-align: center; }
+    #mic-icon { width: 48px; height: 48px; margin-bottom: 1rem; }
     h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
     p.lead { font-size: 1rem; margin-bottom: 1.5rem; color: #444; }
     #rec { font-size: 1.2rem; padding: 12px 24px; border: 2px solid #000; background: transparent; color: #000; cursor: pointer; border-radius: 4px; transition: background 0.2s; }
     #rec:active { background: #000; color: #fff; }
-    .output { margin-top: 1.5rem; text-align: left; }
-    .output h3 { font-size: 1rem; margin-bottom: 0.5rem; color: #222; }
-    .output pre { background: #f5f5f5; padding: 0.75rem; border-radius: 4px; overflow-x: auto; font-size: 0.9rem; line-height: 1.4; }
+    #waveform { width: 100%; height: 80px; background: #f5f5f5; margin-top: 1rem; border-radius: 4px; }
   </style>
 </head>
 <body>
   <div id="app">
+    <!-- Microphone icon (place microphone-342.svg in this static/ folder) -->
+    <img id="mic-icon" src="microphone-342.svg" alt="Microphone icon">
     <h1>PureVoice AI</h1>
-    <p class="lead">Your voice, your AI. 100% offline. Infinite privacy.</p>
+    <p class="lead">Your voice, your AI. Hit and hold the button to talk.</p>
     <button id="rec">Hold to Talk</button>
-    <div class="output">
-      <h3>Transcript</h3>
-      <pre id="transcript">—</pre>
-    </div>
-    <div class="output">
-      <h3>Response</h3>
-      <pre id="response">—</pre>
-    </div>
+    <canvas id="waveform"></canvas>
   </div>
   <script>
-    let recorder, chunks;
+    let recorder, chunks, audioContext, analyser, dataArray, animationId, source, audioStream;
     const rec = document.getElementById('rec');
-    const transcriptEl = document.getElementById('transcript');
-    const responseEl = document.getElementById('response');
+    const canvas = document.getElementById('waveform');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function drawWaveform() {
+      animationId = requestAnimationFrame(drawWaveform);
+      analyser.getByteTimeDomainData(dataArray);
+      ctx.fillStyle = '#f5f5f5';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#000';
+      ctx.beginPath();
+      const sliceWidth = canvas.width / dataArray.length;
+      let x = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = v * (canvas.height / 2);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+        x += sliceWidth;
+      }
+      ctx.lineTo(canvas.width, canvas.height / 2);
+      ctx.stroke();
+    }
 
     async function startRecording() {
-      transcriptEl.textContent = 'Listening...';
-      responseEl.textContent = '';
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      source = audioContext.createMediaStreamSource(audioStream);
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      dataArray = new Uint8Array(analyser.fftSize);
+      source.connect(analyser);
+      drawWaveform();
+
+      recorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
       chunks = [];
       recorder.ondataavailable = e => chunks.push(e.data);
       recorder.start();
@@ -52,30 +80,31 @@
 
     async function stopRecording() {
       recorder.stop();
+      cancelAnimationFrame(animationId);
+      audioContext.close();
+      audioStream.getTracks().forEach(track => track.stop());
       recorder.onstop = async () => {
-        transcriptEl.textContent = 'Processing...';
+        rec.textContent = 'Processing...';
         const blob = new Blob(chunks, { type: 'audio/webm' });
         const form = new FormData();
         form.append('audio', blob, 'recording.webm');
         try {
           const res = await fetch('/process', { method: 'POST', body: form });
           const data = await res.json();
-          transcriptEl.textContent = data.transcript;
-          responseEl.textContent = data.response_text;
           const audio = new Audio('data:audio/mp3;base64,' + data.audio_base64);
           audio.play();
         } catch (err) {
-          transcriptEl.textContent = 'Error: ' + err.message;
+          console.error(err);
+        } finally {
+          rec.textContent = 'Hold to Talk';
         }
-        rec.textContent = 'Hold to Talk';
       };
     }
 
-    // Support mouse and touch
     rec.addEventListener('mousedown', startRecording);
     rec.addEventListener('mouseup', stopRecording);
-    rec.addEventListener('touchstart', startRecording);
-    rec.addEventListener('touchend', stopRecording);
+    rec.addEventListener('touchstart', e => { e.preventDefault(); startRecording(); });
+    rec.addEventListener('touchend', e => { e.preventDefault(); stopRecording(); });
   </script>
 </body>
 </html>
