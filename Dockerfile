@@ -1,3 +1,4 @@
+# Base image
 FROM python:3.11-slim
 
 # Minimal runtime deps
@@ -5,13 +6,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Ollama CLI (daemon pulled at runtime)
+# Install Ollama CLI (daemon will be started at runtime)
 RUN curl -fsSL https://ollama.ai/install.sh | bash
 
+# Create isolated virtual environment inside container
+ENV VIRTUAL_ENV=/opt/venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+# Copy application code
 WORKDIR /app
 COPY . .
 
-# Install Python dependencies
+# Install Python dependencies inside venv
 RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8000
