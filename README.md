@@ -19,6 +19,7 @@ Build and run everything in one container — no additional install steps.
 ```bash
 docker build -t voice-agent .
 docker run --rm -p 8000:8000 voice-agent        # nothing else to install
+> **Note:** The container creates its own Python virtual environment under `/opt/venv`, so your host’s Python environment remains untouched.
 ```
 > Heads-up: On the first run the container downloads the phi3:mini model (~3.5 GB). Subsequent starts are instant because the model is cached inside the container layer. No API keys required.
 Open http://localhost:8000 in your browser and hold the button to talk.
