@@ -2,22 +2,59 @@ version: '3.8'
 services:
   chat:
     image: ollama/ollama:latest
-    command: ["run","llama3:8b-instruct"]
+    command: ["run","phi4-mini"]
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama_data:/ollama/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 2G
 
   app:
     build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       TTS_BACKEND: local
-      PIPER_VOICE: pt-br-joaquim-low
+      PIPER_VOICE: en-us-ryan-low
+      OLLAMA_MODEL: phi4-mini
       OLLAMA_URL: http://chat:11434/api/chat
+      WHISPER_MODEL: tiny
+      LOG_LEVEL: INFO
+    volumes:
+      - ./static:/app/static
+      - whisper_models:/root/.cache/huggingface/hub
+      - piper_models:/root/.local/share/piper/
     depends_on:
       - chat
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          memory: 1G
 
 volumes:
   ollama_data:
+  whisper_models:
+  piper_models:

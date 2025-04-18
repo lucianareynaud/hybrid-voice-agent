@@ -7,68 +7,46 @@ Run all components locally with no API keys, no service credits, and zero cloud 
 Your audio and data never leave your machine—enterprise-grade privacy at your fingertips.
 
 ## System Requirements
-- Memory: Whisper 'small' uses ~2–3 GB RAM; Ollama llama3:8b-instruct uses ~10 GB; allow ~14 GB total plus OS overhead (~16 GB+ recommended).
-- CPU: 4+ cores. CPU-only inference can be several times real-time; for low-latency (<300 ms) consider GPU or remote inference.
-- For low-memory setups (<8 GB), use `WHISPER_MODEL=tiny` (~200 MB) and/or remote chat/TTS backends.
-- Docker installed; ports 8000 (agent) and 11434 (chat) accessible.
+- Memory: Whisper 'small' uses ~2–3 GB RAM; Ollama llama3:8b-instruct uses ~10 GB; allow ~14 GB total plus OS overhead (~16 GB+ recommended).
+- CPU: 4+ cores. CPU-only inference can be several times real-time; for low-latency (<300 ms) consider GPU or remote inference.
+- For low-memory setups (<8 GB), use `WHISPER_MODEL=tiny` (~200 MB) and/or remote chat/TTS backends.
+- Docker installed; port 8000 accessible.
 
 ## Quick Start
 
-### Option 1: Single Docker Image (Recommended)
-Build and run everything in one container — no additional install steps.
+### Just 2 Simple Steps
+
 ```bash
+# Step 1: Build the image (only needed once)
 docker build -t voice-agent .
-docker run --rm -p 8000:8000 voice-agent        # nothing else to install
-> **Note:** The container creates its own Python virtual environment under `/opt/venv`, so your host’s Python environment remains untouched.
+
+# Step 2: Run the container
+docker run --rm -p 127.0.0.1:8000:8000 voice-agent
 ```
-> Heads-up: On the first run the container downloads the phi3:mini model (~3.5 GB). Subsequent starts are instant because the model is cached inside the container layer. No API keys required.
-Open http://localhost:8000 in your browser and hold the button to talk.
 
-### Option 2: Manual Local Install
+Access at: http://localhost:8000
 
-#### Linux / macOS
-1. Install Ollama chat model:
-   ```bash
-   # macOS
-   brew install ollama
-   # or Linux (Homebrew or see https://ollama.ai/docs/installation)
-   ```
-2. Start the chat service:
-   ```bash
-   ollama run ${OLLAMA_MODEL:-phi3:mini}
-   ```
-3. Install Piper TTS engine:
-   ```bash
-   # macOS
-   brew install piper
-   # or Linux (cargo install or binaries from https://github.com/rhasspy/piper)
-   ```
-4. Download a local voice:
-   ```bash
-   piper --download-voice ${PIPER_VOICE:-pt-br-joaquim-low}
-   ```
-5. Install Python dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-6. Launch the FastAPI app:
-   ```bash
-   uvicorn app:app --reload
-   ```
-7. Open http://localhost:8000 and hold the button to talk.
+> **Important**: Always access the application through `localhost` instead of IP addresses for microphone access to work properly. Browsers restrict microphone access on non-secure origins, but make exceptions for localhost.
 
-#### Windows
-Use Windows Subsystem for Linux (WSL) and follow the Linux instructions above,
-or run the single Docker image (Option 1) for a fully automated setup.
+> **Note**: On the first run, the container downloads the phi4-mini model (~3.5 GB). Subsequent starts are faster because the model is cached inside the container layer.
 
 ## Minimum Specs
 | Component | Model                 | RAM Used |
 |-----------|-----------------------|----------|
-| ASR       | whisper **tiny**      | ~0.5 GB   |
-| LLM       | **phi3:mini** (3.8 B) | ~3.5 GB   |
-| TTS       | piper pt‑br‑joaquim   | ~0.2 GB   |
-> Fits comfortably in 8 GB free RAM.
-> To upgrade quality, bump **WHISPER_MODEL=small** and **OLLAMA_MODEL=llama3:8b-instruct** (needs ≈14 GB free).
+| ASR       | whisper **tiny**      | ~0.5 GB   |
+| LLM       | **phi3:mini** (3.8 B) | ~3.5 GB   |
+| TTS       | piper en-us-ryan-low  | ~0.2 GB   |
+> Fits comfortably in 8 GB free RAM.
+> To upgrade quality, bump **WHISPER_MODEL=small** and **OLLAMA_MODEL=llama3:8b-instruct** (needs ≈14 GB free).
+
+## Troubleshooting
+
+### Microphone Access Issues
+If you experience microphone access problems:
+
+1. **Always use localhost**: Access the application through http://localhost:8000 rather than using IP addresses
+2. **Check browser permissions**: Ensure your browser has permission to access your microphone
+3. **Try a different browser**: Chrome and Edge tend to work best for local development
 
 ## Cloudflare Tunnel
 ```bash
@@ -85,7 +63,7 @@ export TTS_BACKEND=openai      # plus OPENAI_API_KEY
 ```
 
 ## Roadmap (next steps)
-- WebSocket streaming (<300 ms latency)
+- WebSocket streaming (<300 ms latency)
 - VAD to auto‑detect end‑of‑utterance
 - Twilio Media Streams phone‑number bridge
 - LoRA fine‑tuning for custom domain-specific language

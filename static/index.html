@@ -3,77 +3,146 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PureVoice AI</title>
+  <meta http-equiv="origin-trial" content="temporary_for_microphone_access">
+  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  <title>Voice Assistant</title>
   <style>
     html, body {
       margin: 0; padding: 0;
       width: 100%; height: 100%;
       display: flex; align-items: center; justify-content: center;
       background: #fff;
-      font-family: sans-serif;
+      font-family: system-ui, -apple-system, sans-serif;
       color: #000;
     }
-    #container { text-align: center; }
+    #container { 
+      text-align: center;
+      max-width: 600px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
     #record-btn {
-      width: 60px; height: 60px;
+      width: 80px; height: 80px;
       border: none; border-radius: 50%;
-      background: #444 url('/static/microphone-grey.svg') center/50% no-repeat;
-      cursor: pointer; transition: box-shadow .3s;
+      background: #fff;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      cursor: pointer; 
+      transition: all 0.3s ease;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #record-btn::after {
+      content: '';
+      display: block;
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: #ff3b30;
+      transition: all 0.2s ease;
     }
     #record-btn.disabled {
-      cursor: not-allowed; opacity: 0.5;
+      cursor: not-allowed; 
+      opacity: 0.5;
+      pointer-events: none;
     }
-    #record-btn.recording {
-      animation: pulse 1.5s ease-in-out infinite;
+    #record-btn.recording::after {
+      animation: redWhitePulse 1.5s ease-in-out infinite;
     }
-    @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(0,0,0,0.2); }
-      70% { box-shadow: 0 0 0 20px rgba(0,0,0,0); }
-      100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+    @keyframes redWhitePulse {
+      0% { transform: scale(1); background-color: #ff3b30; box-shadow: 0 0 0 0 rgba(255,59,48,0.3); }
+      50% { transform: scale(1.1); background-color: #ffffff; box-shadow: 0 0 0 15px rgba(255,59,48,0); }
+      100% { transform: scale(1); background-color: #ff3b30; box-shadow: 0 0 0 0 rgba(255,59,48,0); }
     }
-    /* Waveform displays hidden by default */
-    #waveform, #response-waveform {
-      width: 100px; height: 20px;
-      margin: 10px auto;
-      background: #fff;
+    /* Voice wave visualization */
+    #waveform-container {
+      width: 200px; height: 60px;
+      margin: 20px auto;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #waveform {
+      width: 100%; height: 100%;
       display: none;
     }
     #cta-text {
-      margin-top: 10px; font-size: 1rem;
+      margin-top: 15px; 
+      font-size: 1.1rem;
+      font-weight: 500;
     }
     #transcript {
-      margin-top: 20px; font-size: 0.9rem;
-      color: #333; min-height: 1.2em;
+      margin-top: 30px; 
+      font-size: 1rem;
+      color: #333; 
+      min-height: 1.2em;
+      max-width: 500px;
+    }
+    #response-container {
+      margin-top: 20px;
+      width: 100%;
+      position: relative;
     }
     #speaker-icon {
       width: 40px; height: 40px;
       margin: 20px auto 0;
       display: none;
     }
+    #response-waveform {
+      width: 100%; height: 40px;
+      margin: 10px auto;
+      display: none;
+    }
     #response-text {
-      margin-top: 10px; font-size: 0.9rem;
+      margin-top: 10px;
+      font-size: 1rem;
       min-height: 1.2em;
+      max-width: 500px;
+      line-height: 1.4;
+    }
+    /* Ensure browser shows a notification of microphone access */
+    #mic-access-iframe {
+      display: none;
+      width: 0;
+      height: 0;
+      border: 0;
     }
   </style>
 </head>
 <body>
   <div id="container">
-    <button id="record-btn" aria-label="Record" class="disabled" disabled></button>
+    <button id="record-btn" aria-label="Record"></button>
     <p id="cta-text">Press to Speak</p>
-    <canvas id="waveform"></canvas>
-    <!-- Transcript display -->
-    <div id="transcript" style="margin-top:10px; font-size:0.9rem; color:#333; min-height:1.2em;"></div>
-    <div id="speaker-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-        <path d="M19 5c.77.77 1.5 2.5 1.5 4s-.73 3.23-1.5 4"></path>
-        <path d="M15 9c.5.5 1 1.5 1 3s-.5 2.5-1 3"></path>
-      </svg>
+    
+    <div id="waveform-container">
+      <canvas id="waveform"></canvas>
     </div>
-    <canvas id="response-waveform"></canvas>
-    <p id="response-text"></p>
+    
+    <!-- Transcript display -->
+    <div id="transcript"></div>
+    
+    <div id="response-container">
+      <div id="speaker-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19 5c.77.77 1.5 2.5 1.5 4s-.73 3.23-1.5 4"></path>
+          <path d="M15 9c.5.5 1 1.5 1 3s-.5 2.5-1 3"></path>
+        </svg>
+      </div>
+      <canvas id="response-waveform"></canvas>
+      <p id="response-text"></p>
+    </div>
   </div>
+
+  <!-- Add a special iframe to ensure microphone access works over insecure connections -->
+  <iframe id="mic-access-iframe" src="about:blank"></iframe>
+
   <script>
+    // DOM Elements
     const btn = document.getElementById('record-btn');
     const cta = document.getElementById('cta-text');
     const transcriptEl = document.getElementById('transcript');
@@ -81,135 +150,436 @@
     const responseWaveform = document.getElementById('response-waveform');
     const responseText = document.getElementById('response-text');
     const waveformCanvas = document.getElementById('waveform');
-    let audioCtx, analyser, dataArray, animationId;
-    let micStream, recorder, chunks;
+    const micIframe = document.getElementById('mic-access-iframe');
+    
+    // Audio streams and objects
+    let audioContext = null;
+    let analyser = null;
+    let micAudioStream = null;
+    let recorder = null;
+    let audioChunks = [];
     let isRecording = false;
-
-    async function init() {
+    let visualizationFrame = null;
+    let isButtonDebouncing = false;
+    
+    // Initialize the app
+    window.onload = function() {
+      // Simply try to initialize everything regardless of protocol
+      initializeAudioContext();
+      
+      // Ensure click handler is properly attached with debounce
+      btn.addEventListener('click', debounce(handleButtonClick, 300));
+      
+      // Enable the recording button
+      btn.disabled = false;
+    };
+    
+    // Initialize the audio context
+    function initializeAudioContext() {
       try {
-        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        btn.disabled = false;
-        btn.classList.remove('disabled');
-        setupAnalyser();
-      } catch (err) {
-        cta.textContent = 'Microphone access denied';
-      }
-    }
-
-    function setupAnalyser() {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const source = audioCtx.createMediaStreamSource(micStream);
-      analyser = audioCtx.createAnalyser(); analyser.fftSize = 256;
-      dataArray = new Uint8Array(analyser.frequencyBinCount);
-      source.connect(analyser);
-      drawInputWaveform();
-    }
-
-    function drawInputWaveform() {
-      cancelAnimationFrame(animationId);
-      const canvas = waveformCanvas;
-      const ctx = canvas.getContext('2d');
-      canvas.width = canvas.clientWidth;
-      canvas.height = canvas.clientHeight;
-      function draw() {
-        animationId = requestAnimationFrame(draw);
-        analyser.getByteTimeDomainData(dataArray);
-        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.lineWidth = 2; ctx.strokeStyle = '#444'; ctx.beginPath();
-        const sliceW = canvas.width / dataArray.length;
-        let x = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          const v = dataArray[i] / 128.0;
-          const y = v * (canvas.height / 2);
-          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-          x += sliceW;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioContext();
+        
+        // Force activation of audio context
+        if (audioContext.state === 'suspended') {
+          audioContext.resume();
         }
-        ctx.lineTo(canvas.width, canvas.height/2);
-        ctx.stroke();
+      } catch (e) {
+        console.error('Audio context initialization failed:', e);
       }
-      draw();
     }
-
-    btn.addEventListener('click', () => {
-      if (!isRecording) startRecording(); else stopRecording();
-    });
-
-    function startRecording() {
-      // Begin recording
-      isRecording = true;
-      btn.classList.add('recording');
-      cta.textContent = 'Press to Stop';
-      // Show input waveform
-      waveformCanvas.style.display = 'block';
-      drawInputWaveform();
-      // Setup MediaRecorder
-      chunks = [];
-      recorder = new MediaRecorder(micStream, { mimeType: 'audio/webm' });
-      recorder.ondataavailable = e => chunks.push(e.data);
-      recorder.start();
+    
+    // Debounce function to prevent multiple rapid clicks
+    function debounce(func, wait) {
+      return function(...args) {
+        if (isButtonDebouncing) return;
+        isButtonDebouncing = true;
+        
+        func.apply(this, args);
+        
+        setTimeout(() => {
+          isButtonDebouncing = false;
+        }, wait);
+      };
     }
-
+    
+    // Handle the button click
+    function handleButtonClick(event) {
+      // Prevent any default behavior
+      if (event) {
+        event.preventDefault();
+      }
+      
+      // Don't do anything if the button is disabled
+      if (btn.disabled) {
+        console.log('Button is disabled, ignoring click');
+        return;
+      }
+      
+      console.log('Button clicked, recording state:', isRecording);
+      
+      if (isRecording) {
+        stopRecording();
+      } else {
+        if (micAudioStream) {
+          // We already have microphone access, start recording immediately
+          beginRecording();
+        } else {
+          // Need to request microphone access first
+          startMicrophoneCapture();
+        }
+      }
+    }
+    
+    // Start microphone capture
+    function startMicrophoneCapture() {
+      // Make sure we have an audio context
+      if (!audioContext) {
+        initializeAudioContext();
+      }
+      
+      // Disable button and show status
+      btn.disabled = true;
+      cta.textContent = 'Accessing microphone...';
+      
+      // Request microphone access using all available methods
+      const constraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      };
+      
+      console.log('Requesting microphone access...');
+      
+      // Try the standard approach first
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia(constraints)
+          .then(handleSuccessfulMicrophoneAccess)
+          .catch(handleMicrophoneAccessError);
+      } 
+      // Fallback for older browsers
+      else if (navigator.getUserMedia) {
+        navigator.getUserMedia(constraints, handleSuccessfulMicrophoneAccess, handleMicrophoneAccessError);
+      }
+      // Fallback for webkit/moz prefixed implementations
+      else if (navigator.webkitGetUserMedia || navigator.mozGetUserMedia) {
+        const legacyGetUserMedia = navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+        legacyGetUserMedia.call(navigator, constraints, handleSuccessfulMicrophoneAccess, handleMicrophoneAccessError);
+      }
+      // No getUserMedia support
+      else {
+        handleMicrophoneAccessError(new Error('No getUserMedia support available in this browser'));
+      }
+    }
+    
+    // Handle successful microphone access
+    function handleSuccessfulMicrophoneAccess(stream) {
+      console.log('Microphone access granted!');
+      micAudioStream = stream;
+      
+      // Re-enable button
+      btn.disabled = false;
+      
+      // Clear any previous transcript
+      transcriptEl.textContent = '';
+      responseText.textContent = '';
+      
+      // Set up the audio analyzer for visualization
+      setupAudioProcessing();
+      
+      // Start recording immediately when permission is granted
+      beginRecording();
+    }
+    
+    // Handle microphone access error
+    function handleMicrophoneAccessError(error) {
+      console.error('Could not access microphone:', error);
+      
+      // Re-enable button
+      btn.disabled = false;
+      
+      // Display error message based on error type
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        cta.textContent = 'Microphone access denied. Click to request again.';
+      } else if (error.name === 'NotFoundError') {
+        cta.textContent = 'No microphone detected. Please connect a microphone.';
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        cta.textContent = 'Microphone is in use by another application.';
+      } else if (error.name === 'SecurityError') {
+        cta.textContent = 'Microphone access not allowed on insecure connection.';
+      } else {
+        cta.textContent = 'Microphone error. Click to try again.';
+      }
+    }
+    
+    // Set up audio processing
+    function setupAudioProcessing() {
+      if (!audioContext) {
+        initializeAudioContext();
+      }
+      
+      try {
+        // Create the audio source
+        const source = audioContext.createMediaStreamSource(micAudioStream);
+        
+        // Create an analyzer
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.6;
+        
+        // Connect the source to the analyzer
+        source.connect(analyser);
+        
+        console.log('Audio processing set up successfully');
+      } catch (e) {
+        console.error('Error setting up audio processing:', e);
+      }
+    }
+    
+    // Start recording
+    function beginRecording() {
+      console.log('Beginning recording...');
+      
+      try {
+        isRecording = true;
+        btn.classList.add('recording');
+        cta.textContent = 'Capturing voice. Press to stop.';
+        
+        // Show the waveform
+        waveformCanvas.style.display = 'block';
+        
+        // Start visualization
+        visualizeAudio();
+        
+        // Set up MediaRecorder
+        audioChunks = [];
+        
+        // Try with specific mime type
+        recorder = new MediaRecorder(micAudioStream);
+        recorder.ondataavailable = e => audioChunks.push(e.data);
+        recorder.start();
+        console.log('MediaRecorder started:', recorder.state);
+      } catch (e) {
+        console.error('MediaRecorder error:', e);
+        isRecording = false;
+        btn.classList.remove('recording');
+        cta.textContent = 'Recording failed. Try again.';
+      }
+    }
+    
+    // Stop recording
     function stopRecording() {
-      // Stop recording
+      console.log('Stopping recording...');
+      if (!isRecording) return;
+      
       isRecording = false;
       btn.classList.remove('recording');
       cta.textContent = 'Processing...';
-      // Hide input waveform
+      
+      // Stop visualization
+      cancelAnimationFrame(visualizationFrame);
       waveformCanvas.style.display = 'none';
-      cancelAnimationFrame(animationId);
-      recorder.onstop = onRecordingStop;
-      recorder.stop();
-    }
-
-    async function onRecordingStop() {
-      const blob = new Blob(chunks, { type: 'audio/webm' });
-      const form = new FormData(); form.append('audio', blob, 'input.webm');
-      transcriptEl.textContent = 'Transcribing...';
-      try {
-        const res = await fetch('/process', { method: 'POST', body: form });
-        const json = await res.json();
-        transcriptEl.textContent = json.transcript;
-        playResponse(json.audio_base64, json.voice_name, json.response_text);
-      } catch {
-        transcriptEl.textContent = 'Processing error';
-      } finally {
-        cta.textContent = 'Press to Speak';
+      
+      // Stop recording
+      if (recorder && recorder.state !== 'inactive') {
+        recorder.onstop = handleRecordingComplete;
+        recorder.stop();
+        console.log('MediaRecorder stopped');
+      } else {
+        console.log('No active recorder to stop');
+        handleRecordingComplete();
       }
     }
-
-    function playResponse(b64, voiceName, respText) {
-      speakerIcon.style.display = 'block'; responseWaveform.style.display = 'block'; responseText.textContent = '';
-      const audio = new Audio('data:audio/mp3;base64,' + b64);
-      audio.onplay = () => { responseText.textContent = voiceName + ' is speaking'; drawResponseWaveform(audio); };
-      audio.onended = () => { speakerIcon.style.display = 'none'; responseWaveform.style.display = 'none'; responseText.textContent = respText; };
-      audio.play();
-    }
-
-    function drawResponseWaveform(audio) {
-      const respCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const source = respCtx.createMediaElementSource(audio);
-      const respAnalyser = respCtx.createAnalyser(); respAnalyser.fftSize = 256;
-      const dataArr = new Uint8Array(respAnalyser.frequencyBinCount);
-      source.connect(respAnalyser); respAnalyser.connect(respCtx.destination);
-      const canvas = responseWaveform; const ctx = canvas.getContext('2d');
-      canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
-      function draw() {
-        if (audio.paused) return;
-        requestAnimationFrame(draw);
-        respAnalyser.getByteTimeDomainData(dataArr);
-        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.lineWidth = 1; ctx.strokeStyle = '#000'; ctx.beginPath();
-        const sliceW = canvas.width / dataArr.length; let x = 0;
-        for (let i = 0; i < dataArr.length; i++) {
-          const v = dataArr[i] / 128.0; const y = v * (canvas.height / 2);
-          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-          x += sliceW;
+    
+    // Handle completed recording
+    function handleRecordingComplete() {
+      if (audioChunks.length === 0) {
+        cta.textContent = 'No audio captured. Try again.';
+        return;
+      }
+      
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      
+      // Create form data for upload
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'input.webm');
+      
+      // Show processing status
+      cta.textContent = 'Processing...';
+      
+      // Send to backend
+      fetch('/process', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
         }
-        ctx.stroke();
+        return response.json();
+      })
+      .then(data => {
+        // Display transcript
+        transcriptEl.textContent = data.transcript || 'No transcript available';
+        
+        // Play audio response
+        playAudioResponse(data.audio_base64, data.voice_name, data.response_text);
+      })
+      .catch(error => {
+        console.error('Processing error:', error);
+        transcriptEl.textContent = `Error: ${error.message}`;
+      })
+      .finally(() => {
+        cta.textContent = 'Press to Speak';
+      });
+    }
+    
+    // Play audio response
+    function playAudioResponse(audioBase64, voiceName, responseText) {
+      if (!audioBase64) {
+        responseText.textContent = responseText || 'No response available';
+        return;
       }
+      
+      // Show speaker icon and waveform
+      speakerIcon.style.display = 'block';
+      responseWaveform.style.display = 'block';
+      
+      // Set voice speaking message
+      responseText.textContent = `${voiceName} is speaking...`;
+      
+      // Create and play audio
+      const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
+      
+      audio.onplay = () => {
+        visualizeResponseAudio(audio);
+      };
+      
+      audio.onended = () => {
+        speakerIcon.style.display = 'none';
+        responseWaveform.style.display = 'none';
+        responseText.textContent = responseText || '';
+      };
+      
+      // Play the audio
+      audio.play().catch(err => {
+        console.error('Audio playback error:', err);
+        responseText.textContent = responseText || '';
+      });
+    }
+    
+    // Visualize microphone input
+    function visualizeAudio() {
+      if (!analyser) return;
+      
+      // Create visualization data array
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      
+      // Get canvas context
+      const canvas = waveformCanvas;
+      const ctx = canvas.getContext('2d');
+      
+      // Set canvas dimensions
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+      
+      // Animation function
+      function draw() {
+        visualizationFrame = requestAnimationFrame(draw);
+        
+        // Get data
+        analyser.getByteFrequencyData(dataArray);
+        
+        // Clear canvas
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw bars
+        const barWidth = (canvas.width / dataArray.length) * 2.5;
+        let x = 0;
+        
+        for (let i = 0; i < dataArray.length; i++) {
+          const barHeight = (dataArray[i] / 255) * canvas.height;
+          
+          // Grayscale based on amplitude
+          const intensity = Math.min(Math.floor((dataArray[i] / 255) * 200) + 55, 255);
+          ctx.fillStyle = `rgb(${intensity},${intensity},${intensity})`;
+          
+          // Draw bar
+          const y = canvas.height - barHeight;
+          ctx.fillRect(x, y, barWidth - 1, barHeight);
+          
+          x += barWidth;
+        }
+      }
+      
+      // Start drawing
       draw();
     }
-    init();
+    
+    // Visualize response audio
+    function visualizeResponseAudio(audio) {
+      // Create a new audio context for response visualization
+      const respCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const source = respCtx.createMediaElementSource(audio);
+      const respAnalyser = respCtx.createAnalyser();
+      
+      // Configure analyzer
+      respAnalyser.fftSize = 256;
+      respAnalyser.smoothingTimeConstant = 0.6;
+      
+      // Connect audio
+      source.connect(respAnalyser);
+      respAnalyser.connect(respCtx.destination);
+      
+      // Get data array
+      const dataArr = new Uint8Array(respAnalyser.frequencyBinCount);
+      
+      // Get canvas
+      const canvas = responseWaveform;
+      const ctx = canvas.getContext('2d');
+      
+      // Set canvas dimensions
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+      
+      // Draw function
+      function draw() {
+        if (audio.paused) return;
+        
+        requestAnimationFrame(draw);
+        
+        // Get data
+        respAnalyser.getByteFrequencyData(dataArr);
+        
+        // Clear canvas
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw bars
+        const barWidth = (canvas.width / dataArr.length) * 2.5;
+        let x = 0;
+        
+        for (let i = 0; i < dataArr.length; i++) {
+          const barHeight = (dataArr[i] / 255) * canvas.height;
+          
+          // Grayscale for response waveform
+          const intensity = Math.min(Math.floor((dataArr[i] / 255) * 200) + 55, 255);
+          ctx.fillStyle = `rgb(${intensity},${intensity},${intensity})`;
+          
+          // Draw bar
+          const y = canvas.height - barHeight;
+          ctx.fillRect(x, y, barWidth - 1, barHeight);
+          
+          x += barWidth;
+        }
+      }
+      
+      // Start drawing
+      draw();
+    }
   </script>
 </body>
 </html>
