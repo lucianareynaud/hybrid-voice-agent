@@ -1,38 +1,81 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Hybrid Voice Agent Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PureVoice AI</title>
+  <style>
+    /* Reset & base */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #fff; color: #000; }
+    body { display: flex; align-items: center; justify-content: center; }
+    #app { width: 90%; max-width: 400px; text-align: center; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+    p.lead { font-size: 1rem; margin-bottom: 1.5rem; color: #444; }
+    #rec { font-size: 1.2rem; padding: 12px 24px; border: 2px solid #000; background: transparent; color: #000; cursor: pointer; border-radius: 4px; transition: background 0.2s; }
+    #rec:active { background: #000; color: #fff; }
+    .output { margin-top: 1.5rem; text-align: left; }
+    .output h3 { font-size: 1rem; margin-bottom: 0.5rem; color: #222; }
+    .output pre { background: #f5f5f5; padding: 0.75rem; border-radius: 4px; overflow-x: auto; font-size: 0.9rem; line-height: 1.4; }
+  </style>
 </head>
 <body>
-  <button id="rec" style="font-size:20px;padding:10px 20px;">Hold to Talk</button>
-  <div><h3>Transcript</h3><div id="transcript"></div></div>
-  <div><h3>Response</h3><div id="response"></div></div>
+  <div id="app">
+    <h1>PureVoice AI</h1>
+    <p class="lead">Your voice, your AI. 100% offline. Infinite privacy.</p>
+    <button id="rec">Hold to Talk</button>
+    <div class="output">
+      <h3>Transcript</h3>
+      <pre id="transcript">—</pre>
+    </div>
+    <div class="output">
+      <h3>Response</h3>
+      <pre id="response">—</pre>
+    </div>
+  </div>
   <script>
     let recorder, chunks;
     const rec = document.getElementById('rec');
-    rec.onmousedown = async () => {
-      document.getElementById('transcript').textContent = '';
-      document.getElementById('response').textContent = '';
-      const stream = await navigator.mediaDevices.getUserMedia({audio: true});
-      recorder = new MediaRecorder(stream, {mimeType:'audio/webm'});
+    const transcriptEl = document.getElementById('transcript');
+    const responseEl = document.getElementById('response');
+
+    async function startRecording() {
+      transcriptEl.textContent = 'Listening...';
+      responseEl.textContent = '';
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       chunks = [];
       recorder.ondataavailable = e => chunks.push(e.data);
       recorder.start();
-    };
-    rec.onmouseup = async () => {
+      rec.textContent = 'Release to Send';
+    }
+
+    async function stopRecording() {
       recorder.stop();
       recorder.onstop = async () => {
-        const blob = new Blob(chunks, {type:'audio/webm'});
+        transcriptEl.textContent = 'Processing...';
+        const blob = new Blob(chunks, { type: 'audio/webm' });
         const form = new FormData();
-        form.append('audio', blob, 'rec.webm');
-        const res = await fetch('/process', {method:'POST', body:form});
-        const data = await res.json();
-        document.getElementById('transcript').textContent = data.transcript;
-        document.getElementById('response').textContent = data.response_text;
-        new Audio('data:audio/mp3;base64,'+data.audio_base64).play();
+        form.append('audio', blob, 'recording.webm');
+        try {
+          const res = await fetch('/process', { method: 'POST', body: form });
+          const data = await res.json();
+          transcriptEl.textContent = data.transcript;
+          responseEl.textContent = data.response_text;
+          const audio = new Audio('data:audio/mp3;base64,' + data.audio_base64);
+          audio.play();
+        } catch (err) {
+          transcriptEl.textContent = 'Error: ' + err.message;
+        }
+        rec.textContent = 'Hold to Talk';
       };
-    };
+    }
+
+    // Support mouse and touch
+    rec.addEventListener('mousedown', startRecording);
+    rec.addEventListener('mouseup', stopRecording);
+    rec.addEventListener('touchstart', startRecording);
+    rec.addEventListener('touchend', stopRecording);
   </script>
 </body>
 </html>
