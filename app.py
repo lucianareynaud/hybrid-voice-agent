@@ -99,24 +99,34 @@ def openai_tts(text: str) -> bytes:
 
 @app.post("/process")
 async def process(audio: UploadFile = File(...)):
-    print("[DEBUG] Received /process request, filename:", audio.filename)
-    suffix = os.path.splitext(audio.filename)[1] or ".webm"
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(await audio.read())
-        tmp_path = tmp.name
-
+    tmp_dir = tempfile.mkdtemp()
+    webm_path = os.path.join(tmp_dir, "input.webm")
+    wav_path = os.path.join(tmp_dir, "input.wav")
+    with open(webm_path, "wb") as f:
+        f.write(await audio.read())
+    ff = subprocess.run(
+        ["ffmpeg", "-y", "-i", webm_path, "-ac", "1", "-ar", "16000", wav_path],
+        capture_output=True
+    )
+    if ff.returncode != 0:
+        raise HTTPException(500, f"ffmpeg error: {ff.stderr.decode().strip()}")
     try:
-        transcript = await transcribe_audio(tmp_path)
+        segments, _ = model.transcribe(wav_path, language="en")
+        transcript = "".join(s.text for s in segments).strip()
         response_text = await chat_with_ollama(transcript)
     except Exception as e:
         raise HTTPException(500, str(e))
 
+    # Select TTS backend and corresponding voice name
     backend = os.getenv("TTS_BACKEND", "local").lower()
     if backend == "local":
+        voice_name = os.getenv("PIPER_VOICE", "pt-br-joaquim-low")
         audio_bytes = local_tts(response_text)
     elif backend == "elevenlabs":
+        voice_name = "Rachel"
         audio_bytes = elevenlabs_tts(response_text)
     elif backend == "openai":
+        voice_name = "alloy"
         audio_bytes = openai_tts(response_text)
     else:
         raise HTTPException(400, f"Unknown TTS_BACKEND: {backend}")
@@ -125,6 +135,7 @@ async def process(audio: UploadFile = File(...)):
     return JSONResponse({
         "transcript": transcript,
         "response_text": response_text,
+        "voice_name": voice_name,
         "audio_format": "mp3",
         "audio_base64": b64
     })
