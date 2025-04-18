@@ -9,7 +9,7 @@ docker compose down
 
 ## Create custom Modelfile for Granite3.1-MoE
 echo "Creating custom Modelfile for Granite3.1-MoE..."
-cat > qwen-modelfile.txt << 'EOL'
+cat > granite-modelfile.txt << 'EOL'
 FROM granite3.1-moe:1b
 
 SYSTEM """
@@ -46,8 +46,8 @@ docker exec hybrid-voice-agent-cursor-ollama-1 ollama pull granite3.1-moe:3b
 
 # Copy the Modelfile into the container and create our custom model
 echo "Creating custom purevoice-granite model..."
-docker cp qwen-modelfile.txt hybrid-voice-agent-cursor-ollama-1:/tmp/qwen-modelfile.txt
-docker exec hybrid-voice-agent-cursor-ollama-1 ollama create purevoice-granite -f /tmp/qwen-modelfile.txt
+docker cp granite-modelfile.txt hybrid-voice-agent-cursor-ollama-1:/tmp/granite-modelfile.txt
+docker exec hybrid-voice-agent-cursor-ollama-1 ollama create purevoice-granite -f /tmp/granite-modelfile.txt
 
 # Warm up the model with a very short prompt
 echo "Warming up the model..."

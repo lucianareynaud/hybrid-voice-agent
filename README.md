@@ -14,19 +14,7 @@ Your audio and data never leave your machine—enterprise-grade privacy at your 
 
 ## Quick Start
 
-### Using the Simple Docker Setup (Recommended)
-
-```bash
-# Run the setup script for Granite3.1-MoE 1B model
-./start-app.sh
-
-# Or manually start with docker-compose
-docker-compose -f docker-compose.simple.yml up -d
-```
-
-Access at: http://localhost:8000
-
-### Alternative: Single Container Setup
+### Docker Setup
 
 ```bash
 # Step 1: Build the image (only needed once)
@@ -35,6 +23,7 @@ docker build -t voice-agent .
 # Step 2: Run the container
 docker run --rm -p 127.0.0.1:8000:8000 voice-agent
 ```
+Access at: http://localhost:8000
 
 > **Important**: Always access the application through `localhost` instead of IP addresses for microphone access to work properly. Browsers restrict microphone access on non-secure origins, but make exceptions for localhost.
 
@@ -78,19 +67,4 @@ cloudflared tunnel run voice-agent
 ```
 Exposes your local app to the internet via a secure Cloudflare Tunnel.
 
-## Premium Voices (Optional)
-By default, the demo runs 100% offline with no API keys or service credits required. To enable enhanced cloud-based voices, set one of the following:
-```bash
-export TTS_BACKEND=elevenlabs  # plus ELEVENLABS_API_KEY
-# or
-export TTS_BACKEND=openai      # plus OPENAI_API_KEY
-```
-
-## Roadmap (next steps)
-- WebSocket streaming (<300 ms latency)
-- VAD to auto‑detect end‑of‑utterance
-- Twilio Media Streams phone‑number bridge
-- LoRA fine‑tuning for custom domain-specific language
-- Front‑end subtitles with word‑level timing
-
-Apache 2.0 License
+    

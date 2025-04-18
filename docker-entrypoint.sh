@@ -12,7 +12,7 @@ fi
 
 # Create Granite modelfile for the purevoice-granite model
 echo "Creating Granite modelfile..."
-cat > /tmp/qwen-modelfile.txt << 'EOL'
+cat > /tmp/granite-modelfile.txt << 'EOL'
 FROM granite3.1-moe:1b
 
 SYSTEM """
@@ -87,7 +87,7 @@ else
     timeout 300s ollama pull granite3.1-moe:1b || echo "Base model pull timed out or failed, continuing anyway"
 
     echo "Creating custom model purevoice-granite..."
-    ollama create purevoice-granite -f /tmp/qwen-modelfile.txt
+    ollama create purevoice-granite -f /tmp/granite-modelfile.txt
 
     # Warm up the custom model with a simple query
     echo "Warming up custom model with a simple query..."

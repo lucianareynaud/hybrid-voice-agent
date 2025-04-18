@@ -5,7 +5,7 @@ echo "===== Setting up Granite3.1-MoE 1B model ====="
 
 # Create Granite modelfile
 echo "Creating Granite modelfile..."
-cat > /tmp/qwen-modelfile.txt << 'EOL'
+cat > /tmp/granite-modelfile.txt << 'EOL'
 FROM granite3.1-moe:1b
 
 SYSTEM """
@@ -27,10 +27,10 @@ ollama pull granite3.1-moe:3b
 
 # Create the custom model
 echo "Creating purevoice-granite model..."
-ollama create purevoice-granite -f /tmp/qwen-modelfile.txt
+ollama create purevoice-granite -f /tmp/granite-modelfile.txt
 
 # Warm up the model
 echo "Warming up the model..."
 ollama run purevoice-granite "Write a short greeting" --verbose=false
 
-echo "===== Granite3.1-MoE 3B model setup complete ====="
+echo "===== Granite3.1-MoE 3B model setup complete =====" 

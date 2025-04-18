@@ -13,6 +13,27 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from faster_whisper import WhisperModel
 import httpx
+import re
+
+# Pre-compile regex patterns for cleaning Piper input
+_RE_MD = re.compile(r'[*_`]{1,3}')
+_RE_MD_LINK = re.compile(r'\[([^\]]+)\]\([^)]+\)')
+_RE_URL = re.compile(r'https?://\S+')
+_RE_HTML = re.compile(r'<[^>]+>')
+_RE_CITE1 = re.compile(r'\[\d+\]')
+_RE_CITE2 = re.compile(r'\([A-Za-z0-9 ,.&;-]{1,50}\)')
+_RE_WS = re.compile(r'\s+')
+
+def clean_for_piper(text: str) -> str:
+    """Remove markdown, URLs, HTML, citations, and collapse whitespace before TTS."""
+    text = _RE_MD.sub('', text)
+    text = _RE_MD_LINK.sub(r'\1', text)
+    text = _RE_URL.sub('', text)
+    text = _RE_HTML.sub('', text)
+    text = _RE_CITE1.sub('', text)
+    text = _RE_CITE2.sub('', text)
+    return _RE_WS.sub(' ', text).strip()
+
 
 # Load environment variables
 load_dotenv()
@@ -412,9 +433,11 @@ async def process(audio: UploadFile = File(...)):
             logger.warning("Empty response from Ollama")
             raise HTTPException(500, "The language model returned an empty response. Please try again.")
         
+        cleaned_text = clean_for_piper(response_text)
+        
         # Generate speech from the response text
         voice_name = os.getenv("PIPER_VOICE", "en-us-ryan-low")
-        audio_bytes = local_tts(response_text)
+        audio_bytes = local_tts(cleaned_text)
 
         # Encode audio as base64
         b64 = base64.b64encode(audio_bytes).decode("utf-8")
