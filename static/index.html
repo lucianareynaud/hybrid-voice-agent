@@ -31,10 +31,12 @@
       70% { box-shadow: 0 0 0 20px rgba(0,0,0,0); }
       100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
     }
+    /* Waveform displays hidden by default */
     #waveform, #response-waveform {
       width: 100px; height: 20px;
       margin: 10px auto;
       background: #fff;
+      display: none;
     }
     #cta-text {
       margin-top: 10px; font-size: 1rem;
@@ -57,9 +59,10 @@
 <body>
   <div id="container">
     <button id="record-btn" aria-label="Record" class="disabled" disabled></button>
-    <canvas id="waveform"></canvas>
     <p id="cta-text">Press to Speak</p>
-    <div id="transcript"></div>
+    <canvas id="waveform"></canvas>
+    <!-- Transcript display -->
+    <div id="transcript" style="margin-top:10px; font-size:0.9rem; color:#333; min-height:1.2em;"></div>
     <div id="speaker-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -132,7 +135,14 @@
     });
 
     function startRecording() {
-      isRecording = true; btn.classList.add('recording'); cta.textContent = 'Press to Stop';
+      // Begin recording
+      isRecording = true;
+      btn.classList.add('recording');
+      cta.textContent = 'Press to Stop';
+      // Show input waveform
+      waveformCanvas.style.display = 'block';
+      drawInputWaveform();
+      // Setup MediaRecorder
       chunks = [];
       recorder = new MediaRecorder(micStream, { mimeType: 'audio/webm' });
       recorder.ondataavailable = e => chunks.push(e.data);
@@ -140,8 +150,15 @@
     }
 
     function stopRecording() {
-      isRecording = false; btn.classList.remove('recording'); cta.textContent = 'Processing...';
-      recorder.onstop = onRecordingStop; recorder.stop(); cancelAnimationFrame(animationId);
+      // Stop recording
+      isRecording = false;
+      btn.classList.remove('recording');
+      cta.textContent = 'Processing...';
+      // Hide input waveform
+      waveformCanvas.style.display = 'none';
+      cancelAnimationFrame(animationId);
+      recorder.onstop = onRecordingStop;
+      recorder.stop();
     }
 
     async function onRecordingStop() {
